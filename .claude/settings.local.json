@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create vite:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run build:*)",
+      "Bash(node --version:*)",
+      "Bash(command -v nvm:*)",
+      "Bash(nvm:*)",
+      "Bash(source:*)"
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+# Phonphai Chatbot Frontend Tasks
+
+- [ ] Planning
+  - [ ] Analyze current backend API
+  - [ ] Create implementation plan
+  - [ ] Await user approval of implementation plan
+- [ ] Setup
+  - [ ] Initialize Vite React SPA in `Frontend/web`
+  - [ ] Install dependencies (TailwindCSS, router, Lucide icons, etc.)
+  - [ ] Copy and adapt components from `Frontend/figma/components`
+- [ ] Core Logic Development
+  - [ ] Implement `useChatManager` hook for chat history with `localStorage`
+  - [ ] Implement API service to communicate with backend at `http://localhost:8080/api/v1/chat/`
+  - [ ] Add "Thinking..." UI state
+  - [ ] Initially say "Hi" based on language
+  - [ ] Clear chat session
+- [ ] UI Integration
+  - [ ] Integrate chat logic with `DesktopView` and `MobileView`
+  - [ ] Add Language toggle (TH/ENG)
+- [ ] Dockerization
+  - [ ] Create `Dockerfile` for frontend
+  - [ ] Create or update docker-compose for easy local running
+- [ ] Verification
+  - [ ] Test API request/response
+  - [ ] Test mobile responsiveness
+  - [ ] Verify functionality works locally
