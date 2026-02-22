@@ -1,0 +1,82 @@
+syntax = "proto3";
+
+package retriever;
+
+service RetrieverService {
+  rpc Search (SearchRequest) returns (SearchResponse);
+  rpc ListFiles (ListFilesRequest) returns (ListFilesResponse);
+  rpc UploadFile (stream UploadFileRequest) returns (UploadFileResponse);
+  rpc DeleteFile (DeleteFileRequest) returns (DeleteFileResponse);
+}
+
+// --- Shared Enums ---
+
+enum Theme {
+  THEME_UNSPECIFIED = 0; // Safety default
+  REMEDY = 1;            // Theme 1: Ticketing/Remedy
+  DISASTER = 2;          // Theme 2: Crisis Protocols
+  MANUAL = 3;            // Theme 3: User Manuals
+}
+
+// --- Messages ---
+
+message SearchRequest {
+  string query = 1;
+  Theme theme = 2; 
+  int32 limit = 3;
+}
+
+message SearchResponse {
+  message Result {
+    string content = 1;
+    string file_name = 2;
+    float score = 3;
+  }
+  repeated Result results = 1;
+}
+
+message ListFilesRequest {
+  // Left intentionally empty so it fetches all files across all themes
+}
+
+message FileInfo {
+  string file_id = 1;      // Mongo ID
+  string file_name = 2;    // Original filename
+  string theme = 3;        // The theme the file belongs to
+  string created_at = 4;   // ISO Timestamp
+  int64 size_bytes = 5;    
+}
+
+message ListFilesResponse {
+  repeated FileInfo files = 1;
+}
+
+message UploadFileRequest {
+  oneof data {
+    FileMetadata info = 1;
+    bytes chunk_data = 2;
+  }
+}
+
+message FileMetadata {
+  string file_name = 1;
+  Theme theme = 2;         
+  string content_type = 3; 
+}
+
+message UploadFileResponse {
+  string file_id = 1;      
+  string message = 2;     
+  bool success = 3;
+}
+
+message DeleteFileRequest {
+  string file_id = 1;
+  string filename = 2;
+  string theme = 3;
+}
+
+message DeleteFileResponse {
+  bool success = 1;
+  string message = 2;
+}

@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package agent;
+
+service AgentService {
+  rpc Chat (ChatRequest) returns (ChatResponse);
+}
+
+message ChatRequest {
+  string session_id = 1;
+  string user_message = 2;
+}
+
+message ChatResponse {
+  string session_id = 1;
+  string ai_message = 2;
+  repeated Source sources = 3;
+}
+
+message Source {
+  string title = 1;
+  string theme = 2;
+  string content = 3;
+}
