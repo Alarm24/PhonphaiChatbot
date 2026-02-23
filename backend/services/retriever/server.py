@@ -116,18 +116,18 @@ class RetrieverServicer(retriever_pb2_grpc.RetrieverServiceServicer):
         try:
             db_files = self.mongo.get_all_files()
             response_files = []
-            
+
             for f in db_files:
                 response_files.append(
                     retriever_pb2.FileInfo(
                         file_id=f["file_id"],
-                        file_name=f["file_name"], 
+                        file_name=f["file_name"],
                         theme=str(f["theme"]),
                         created_at=f["created_at"],
-                        size_bytes=f["size_bytes"]
+                        size_bytes=f["size_bytes"],
                     )
                 )
-                
+
             return retriever_pb2.ListFilesResponse(files=response_files)
         except Exception as e:
             log.error(f"Error listing files: {e}")
@@ -135,31 +135,30 @@ class RetrieverServicer(retriever_pb2_grpc.RetrieverServiceServicer):
 
     def DeleteFile(self, request, context):
         log.info(f"🗑️ Deleting file: {request.filename} ({request.file_id})")
-        
+
         try:
             # 1. Delete from MongoDB
             self.mongo.delete_file(request.file_id)
-            
+
             # 2. Delete from ChromaDB vector store
             theme_key = request.theme.lower()
-            
+
             theme_map = {
                 "remedy": retriever_pb2.REMEDY,
                 "disaster": retriever_pb2.DISASTER,
-                "manual": retriever_pb2.MANUAL
+                "manual": retriever_pb2.MANUAL,
             }
-            
+
             enum_key = theme_map.get(theme_key)
             handler = self.themes.get(enum_key)
-            
+
             if handler:
                 handler.delete_knowledge(request.filename)
             else:
                 log.warning(f"Theme handler not found for: {theme_key}")
-                
+
             return retriever_pb2.DeleteFileResponse(
-                success=True, 
-                message=f"Successfully deleted {request.filename}"
+                success=True, message=f"Successfully deleted {request.filename}"
             )
         except Exception as e:
             log.error(f"❌ Error deleting file: {e}")

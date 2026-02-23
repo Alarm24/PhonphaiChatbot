@@ -90,71 +90,27 @@ async def upload_document(
 
 
 @router.get("/")
-async def list_documents(theme: str, settings: Settings = Depends(get_settings)):
-    """Fetches a list of indexed files for a specific theme from the Retriever."""
-    try:
-        theme_map = {
-            "remedy": retriever_pb2.REMEDY,
-            "disaster": retriever_pb2.DISASTER,
-            "manual": retriever_pb2.MANUAL,
-        }
-
-        theme_lower = theme.lower()
-        if theme_lower not in theme_map:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid theme. Must be remedy, disaster, or manual.",
-            )
-
-        theme_enum = theme_map[theme_lower]
-
-        # Use the persistent client
-        client = gRPCState.retriever_client
-        request = retriever_pb2.ListFilesRequest(theme=theme_enum)
-
-        response = await client.ListFiles(request)
-
-        # Format the protobuf response into a clean JSON dictionary for the REST API
-        return {
-            "theme": theme_lower,
-            "files": [
-                {
-                    "file_id": f.file_id,
-                    "file_name": f.file_name,
-                    "created_at": f.created_at,
-                    "size_bytes": f.size_bytes,
-                }
-                for f in response.files
-            ],
-        }
-
-    except grpc.RpcError as e:
-        raise HTTPException(status_code=502, detail=...) from e
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@router.get("/")
 async def list_files():
     """Get a list of all uploaded files across all themes"""
     try:
         request = retriever_pb2.ListFilesRequest()
         response = await gRPCState.retriever_client.ListFiles(request)
-        
+
         return {
             "files": [
                 {
-                    "file_id": f.file_id, 
+                    "file_id": f.file_id,
                     "file_name": f.file_name,
                     "theme": f.theme,
                     "created_at": f.created_at,
-                    "size_bytes": f.size_bytes
-                } for f in response.files
+                    "size_bytes": f.size_bytes,
+                }
+                for f in response.files
             ]
         }
     except Exception as e:
         log.error(f"Failed to fetch files: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.delete("/{file_id}")
