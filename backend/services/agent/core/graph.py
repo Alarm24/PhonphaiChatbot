@@ -1,7 +1,8 @@
 from typing import Annotated, TypedDict
 
-from langchain.chat_models import init_chat_model
+from config import get_settings
 from langchain_core.messages import SystemMessage
+from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
@@ -13,7 +14,13 @@ class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
 
 
-model = init_chat_model("gemini-2.5-flash-lite", model_provider="google_genai", temperature=0)
+settings = get_settings()
+model = ChatOpenAI(
+    model="google/gemini-2.5-flash",
+    openai_api_base="https://openrouter.ai/api/v1",
+    openai_api_key=settings.OPENROUTER_API_KEY,
+    temperature=0,
+)
 
 model_with_tools = model.bind_tools(TOOLS_LIST)
 

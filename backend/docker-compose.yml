@@ -41,7 +41,7 @@ services:
       dockerfile: ./services/agent/Dockerfile
     environment:
       - RETRIEVER_HOST=retriever:50051
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(('localhost', 50052))"]
