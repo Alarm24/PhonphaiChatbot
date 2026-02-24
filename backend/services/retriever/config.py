@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     HYBRID_BM25_WEIGHT: float = 0.4
     RETRIEVAL_K: int = 15
     RERANK_TOP_K: int = 5
+    CHUNK_SIZE: int = 1000
+    CHUNK_OVERLAP: int = 200
 
     class Config:
         env_file = ".env"

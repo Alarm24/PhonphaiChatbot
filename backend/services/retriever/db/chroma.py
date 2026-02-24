@@ -1,5 +1,5 @@
 import chromadb
-from chromadb.api.types import EmbeddingFunction, Documents, Embeddings
+from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
 from config import get_settings
 from langchain_huggingface import HuggingFaceEmbeddings
 from logger import log
@@ -8,6 +8,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 
 class LangChainEmbeddingAdapter(EmbeddingFunction):
     """Adapts a LangChain Embedding model to Chroma's required EmbeddingFunction interface."""
+
     def __init__(self, lc_embeddings):
         self.lc_embeddings = lc_embeddings
 
@@ -20,7 +21,7 @@ class ChromaDB:
         self.host = host
 
         settings = get_settings()
-        
+
         lc_ef = HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL_NAME)
         self.ef = LangChainEmbeddingAdapter(lc_ef)
 

@@ -4,7 +4,9 @@ import grpc
 import pypdf
 import retriever_pb2
 import retriever_pb2_grpc
+from config import get_settings
 from db.mongo import MongoDB
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from logger import log
 from themes.disaster import DisasterTheme
 from themes.manual import ManualTheme
@@ -27,13 +29,6 @@ def extract_text_from_bytes(file_bytes, content_type):
     else:
         # Assume plain text
         return file_bytes.decode("utf-8", errors="ignore")
-
-
-def simple_chunker(text, chunk_size=500):
-    """Naive chunking. Use LangChain RecurisveSplitter for better results."""
-    words = text.split()
-    for i in range(0, len(words), chunk_size):
-        yield " ".join(words[i : i + chunk_size])
 
 
 class RetrieverServicer(retriever_pb2_grpc.RetrieverServiceServicer):
@@ -98,7 +93,15 @@ class RetrieverServicer(retriever_pb2_grpc.RetrieverServiceServicer):
             if handler:
                 raw_text = extract_text_from_bytes(final_bytes, metadata.content_type)
                 if raw_text:
-                    chunks = list(simple_chunker(raw_text))
+                    settings = get_settings()
+                    text_splitter = RecursiveCharacterTextSplitter(
+                        chunk_size=settings.CHUNK_SIZE,
+                        chunk_overlap=settings.CHUNK_OVERLAP,
+                        separators=["\n\n", "\n", " ", ""],
+                    )
+
+                    # Split the text
+                    chunks = text_splitter.split_text(raw_text)
                     handler.add_knowledge(chunks, metadata.file_name)
                     log.info(f"✅ Indexed {len(chunks)} chunks for {metadata.file_name}")
 
