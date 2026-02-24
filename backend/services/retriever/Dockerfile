@@ -6,7 +6,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y gcc g++ python3-dev && rm -rf /var/lib/apt/lists/*
 
 # 1. Copy and install the Retriever specific requirements
-# (Path is relative to the root backend/ folder due to compose build context)
 COPY services/retriever/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
@@ -14,11 +13,28 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY protos /protos
 RUN pip install /protos
 
-# 3. Copy the actual Retriever application code
+# 3. Explicitly set HuggingFace Cache Directory
+ENV HF_HOME=/root/.cache/huggingface
+
+# 4. Define Build Arguments (with fallbacks just in case)
+ARG RERANK_MODEL_NAME="BAAI/bge-reranker-v2-m3"
+ARG EMBEDDING_MODEL_NAME="intfloat/multilingual-e5-large"
+
+# 5. Bake models into the image using the variables
+RUN python -c "\
+from sentence_transformers import CrossEncoder; \
+from langchain_huggingface import HuggingFaceEmbeddings; \
+rerank_model = '${RERANK_MODEL_NAME}'; \
+embed_model = '${EMBEDDING_MODEL_NAME}'; \
+print(f'⏳ Downloading Reranker Model: {rerank_model}...'); \
+CrossEncoder(rerank_model); \
+print(f'⏳ Downloading Embedding Model: {embed_model}...'); \
+HuggingFaceEmbeddings(model_name=embed_model); \
+print('✅ All models successfully baked into image!')"
+
+# 6. Copy the actual Retriever application code
 COPY services/retriever/ .
 
-# Expose the gRPC port for the Retriever
 EXPOSE 50051
 
-# Run the Retriever Service
 CMD ["python", "main.py"]

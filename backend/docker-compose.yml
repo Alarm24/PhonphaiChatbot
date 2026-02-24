@@ -18,13 +18,22 @@ services:
 
   # --- Microservices ---
   retriever:
-    build: 
+    build:  
       context: .
       dockerfile: ./services/retriever/Dockerfile
+      args:
+        EMBEDDING_MODEL_NAME: intfloat/multilingual-e5-large
+        RERANK_MODEL_NAME: BAAI/bge-reranker-v2-m3
     environment:
       - MONGO_URI=mongodb://mongo:27017
       - CHROMA_HOST=chroma
       - ANONYMIZED_TELEMETRY=False
+      - EMBEDDING_MODEL_NAME=intfloat/multilingual-e5-large
+      - RERANK_MODEL_NAME=BAAI/bge-reranker-v2-m3
+      - HYBRID_SEMANTIC_WEIGHT=0.6
+      - HYBRID_BM25_WEIGHT=0.4
+      - RETRIEVAL_K=15
+      - RERANK_TOP_K=5
     restart: unless-stopped     
     healthcheck:              
       test: ["CMD", "python", "-c", "import socket; socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(('localhost', 50051))"]
