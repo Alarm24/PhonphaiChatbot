@@ -1,45 +1,56 @@
 import retriever_pb2
-from langchain.tools import tool
-
-# Import the global state where our persistent client lives
+from langchain_core.tools import tool
 from state import AgentState
 
 
-def _execute_search(query: str, theme_enum) -> str:
+def _execute_search(query: str, theme_enum) -> tuple[str, list]:
     """Helper to perform the raw gRPC call using the persistent connection."""
     try:
-        # 1. Grab the persistent client (Zero connection overhead!)
         client = AgentState.retriever_client
-
-        # 2. Make the request
-        request = retriever_pb2.SearchRequest(query=query, theme=theme_enum, limit=3)
+        request = retriever_pb2.SearchRequest(query=query, theme=theme_enum, limit=5)
         response = client.Search(request)
 
-        # 3. Format results for the LLM
+        raw_chunks = []
         context = ""
-        for res in response.results:
-            context += f"Source: {res.file_name}\nContent: {res.content}\n---\n"
 
-        return context if context else "No relevant documents found."
+        # Enumerate starting at 1 to match the LLM's [1], [2] formatting
+        for i, res in enumerate(response.results, start=1):
+            # Safely grab the page from the updated protobuf
+            page_info = getattr(res, "page", "Unknown")
+
+            # 1. Format the string that the LLM will read
+            context += f"\n--- Chunk [{i}] ---\n"
+            context += f"Source: {res.file_name} (Page: {page_info})\n"
+            context += f"Content: {res.content}\n"
+
+            # 2. Save the raw metadata for the backend to use later
+            raw_chunks.append({"file_name": res.file_name, "page": page_info})
+
+        if not raw_chunks:
+            return "No relevant documents found.", []
+
+        # Return a tuple: (Text for LLM, Artifact for Backend)
+        return context, raw_chunks
+
     except Exception as e:
-        return f"Error connecting to Knowledge Base: {str(e)}"
+        return f"Error connecting to Knowledge Base: {str(e)}", []
 
 
 # --- The 3 Tools ---
-@tool
-def search_remedy_tickets(query: str) -> str:
+@tool(response_format="content_and_artifact")
+def search_remedy_tickets(query: str) -> tuple[str, list]:
     """Use this to find solutions for IT tickets, error logs, or specific remedy IDs."""
     return _execute_search(query, retriever_pb2.REMEDY)
 
 
-@tool
-def search_disaster_protocols(query: str) -> str:
+@tool(response_format="content_and_artifact")
+def search_disaster_protocols(query: str) -> tuple[str, list]:
     """Use this ONLY for emergency situations, server crashes, or disaster recovery protocols."""
     return _execute_search(query, retriever_pb2.DISASTER)
 
 
-@tool
-def search_user_manuals(query: str) -> str:
+@tool(response_format="content_and_artifact")
+def search_user_manuals(query: str) -> tuple[str, list]:
     """Use this to look up 'How-To' guides, installation steps, or standard operating procedures."""
     return _execute_search(query, retriever_pb2.MANUAL)
 

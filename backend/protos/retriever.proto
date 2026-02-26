@@ -30,7 +30,8 @@ message SearchResponse {
   message Result {
     string content = 1;
     string file_name = 2;
-    float score = 3;
+    string page = 3;
+    float score = 4;
   }
   repeated Result results = 1;
 }

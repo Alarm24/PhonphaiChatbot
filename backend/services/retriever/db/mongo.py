@@ -43,10 +43,12 @@ class MongoDB:
             files.append(
                 {
                     "file_id": str(doc["_id"]),
-                    "file_name": doc.get("file_name", "Unknown"), 
+                    "file_name": doc.get("file_name", "Unknown"),
                     "theme": doc.get("theme", "Unknown"),
-                    "created_at": doc.get("created_at").isoformat() if doc.get("created_at") else "",
-                    "size_bytes": doc.get("size_bytes", 0)
+                    "created_at": doc.get("created_at").isoformat()
+                    if doc.get("created_at")
+                    else "",
+                    "size_bytes": doc.get("size_bytes", 0),
                 }
             )
         return files
