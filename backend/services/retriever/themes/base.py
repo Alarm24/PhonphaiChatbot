@@ -125,11 +125,28 @@ class BaseTheme:
 
         return parsed_results
 
-    def add_knowledge(self, text_chunks, filename):
-        ids = [f"{filename}_chunk_{i}" for i in range(len(text_chunks))]
-        metadatas = [{"source": filename, "theme": self.theme_name} for _ in text_chunks]
+    def add_knowledge(self, chunks_data, filename):
+        """Indexes data. Accepts either a list of strings OR a list of dictionaries with metadata."""
+        texts = []
+        metadatas = []
+        ids = []
 
-        self.chroma.add_documents(self.theme_name, text_chunks, metadatas, ids)
+        for i, chunk in enumerate(chunks_data):
+            if isinstance(chunk, str):
+                # Fallback for plain text arrays (LangChain text splitter)
+                texts.append(chunk)
+                metadatas.append({"source": filename, "theme": self.theme_name})
+            else:
+                # Handling Gemini's structured dictionary output
+                texts.append(chunk["content"])
+                meta = chunk.get("metadata", {})
+                meta["source"] = filename  # Ensure source is always set
+                meta["theme"] = self.theme_name
+                metadatas.append(meta)
+
+            ids.append(f"{filename}_chunk_{i}")
+
+        self.chroma.add_documents(self.theme_name, texts, metadatas, ids)
         self._sync_bm25_index()
 
     def delete_knowledge(self, filename: str):

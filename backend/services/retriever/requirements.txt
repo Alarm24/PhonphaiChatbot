@@ -9,9 +9,11 @@ langchain>=0.2.0
 langchain-community
 langchain-chroma
 langchain_huggingface
+langchain-text-splitters>=0.2.0
 rank_bm25          
 sentence-transformers==2.3.1
 pydantic-settings>=2.2.0
 numpy<2.0.0
 loguru>=0.7.2
 tenacity>=8.2.0  
+requests>=2.31.0

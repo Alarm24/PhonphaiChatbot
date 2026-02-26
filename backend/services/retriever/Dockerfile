@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y gcc g++ python3-dev && rm -rf /var/lib/
 
 # 1. Copy and install the Retriever specific requirements
 COPY services/retriever/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --default-timeout=100 --no-cache-dir -r requirements.txt
 
 # 2. Copy and install the shared protos package
 COPY protos /protos

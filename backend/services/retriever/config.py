@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     APP_NAME: str = "Phonphai Retriever Service"
     PORT: int = 50051
+    APP_URL: str = "https://github.com/PhonphaiChatbot"
 
     # Database URIs
     MONGO_URI: str = "mongodb://mongo:27017"
@@ -18,6 +19,8 @@ class Settings(BaseSettings):
     RERANK_TOP_K: int = 5
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 200
+
+    OPENROUTER_API_KEY: str = ""
 
     class Config:
         env_file = ".env"
