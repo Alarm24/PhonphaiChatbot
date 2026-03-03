@@ -9,10 +9,8 @@ export type TranslationKey =
   | 'thinking'
   | 'quickReply_flood'
   | 'quickReply_forgotPassword'
-  | 'quickReply_shelter'
   | 'quickReply_contact'
   | 'quickReply_hotline'
-  | 'quickReply_safety'
   | 'languageLabel'
   | 'assistantTitle'
   | 'assistantSubtitle'
@@ -37,13 +35,11 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     thinking: 'Thinking...',
     quickReply_flood: 'How to report a flood?',
     quickReply_forgotPassword: 'Forgot Password',
-    quickReply_shelter: 'Where is the nearest shelter?',
     quickReply_contact: 'Contact Official',
     quickReply_hotline: 'Emergency Hotline',
-    quickReply_safety: 'Safety Guidelines',
     languageLabel: 'EN',
     assistantTitle: 'Phonphai Assistant',
-    assistantSubtitle: 'AI-powered disaster management support',
+    assistantSubtitle: 'AI-powered application and disaster support',
     howCanIHelp: 'How can I help you today?',
     selectTopic: 'Select a topic below or type your question',
     errorMessage: 'Sorry, I encountered an error. Please try again.',
@@ -64,10 +60,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     thinking: 'กำลังคิด...',
     quickReply_flood: 'วิธีรายงานน้ำท่วม?',
     quickReply_forgotPassword: 'ลืมรหัสผ่าน',
-    quickReply_shelter: 'ศูนย์พักพิงที่ใกล้ที่สุดอยู่ที่ไหน?',
     quickReply_contact: 'ติดต่อเจ้าหน้าที่',
     quickReply_hotline: 'สายด่วนฉุกเฉิน',
-    quickReply_safety: 'แนวทางความปลอดภัย',
     languageLabel: 'TH',
     assistantTitle: 'ผู้ช่วยพ้นภัย',
     assistantSubtitle: 'แชทบอทช่วยให้การใช้แอปพลิเคชันง่ายขึ้นและตอบคำถามภัยพิบบัติเบื้องต้น',

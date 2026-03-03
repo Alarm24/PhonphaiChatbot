@@ -12,10 +12,8 @@ export function QuickReplyChips({ onSelect, disabled }: QuickReplyChipsProps) {
   const quickReplies = [
     t('quickReply_flood'),
     t('quickReply_forgotPassword'),
-    t('quickReply_shelter'),
     t('quickReply_contact'),
     t('quickReply_hotline'),
-    t('quickReply_safety'),
   ]
 
   return (
