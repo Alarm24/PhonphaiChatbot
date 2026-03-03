@@ -1,10 +1,12 @@
+import { Routes, Route } from 'react-router-dom'
 import { useMediaQuery } from './hooks/useMediaQuery'
 import { useChatManager } from './hooks/useChatManager'
 import { useLanguage } from './contexts/LanguageContext'
 import { MobileView } from './components/MobileView'
 import { DesktopView } from './components/DesktopView'
+import { LoginPage } from './pages/LoginPage'
 
-export default function App() {
+function ChatPage() {
   const isMobile = useMediaQuery('(max-width: 768px)')
   const { t } = useLanguage()
   const { messages, inputValue, setInputValue, isThinking, sendMessage, clearChat } =
@@ -24,5 +26,14 @@ export default function App() {
     <div className="h-screen overflow-hidden">
       {isMobile ? <MobileView {...sharedProps} /> : <DesktopView {...sharedProps} />}
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<ChatPage />} />
+      <Route path="/login" element={<LoginPage />} />
+    </Routes>
   )
 }
