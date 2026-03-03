@@ -53,4 +53,5 @@ Thumbs.db
 # Logs and Diagnostics
 *.log
 logs/
+plan/
 CLAUDE.md
