@@ -53,3 +53,4 @@ Thumbs.db
 # Logs and Diagnostics
 *.log
 logs/
+CLAUDE.md
