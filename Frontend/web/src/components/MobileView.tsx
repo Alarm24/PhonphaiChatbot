@@ -1,6 +1,6 @@
 import { useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Phone, Send, Trash2, LogOut, LogIn } from 'lucide-react'
+import { Send, Trash2, LogOut, LogIn } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Switch } from './ui/switch'
@@ -75,14 +75,6 @@ export function MobileView({
               aria-label="Clear chat"
             >
               <Trash2 className="w-4 h-4" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="text-white hover:bg-red-600"
-              aria-label="Call Staff"
-            >
-              <Phone className="w-5 h-5" />
             </Button>
             {user ? (
               <Button
