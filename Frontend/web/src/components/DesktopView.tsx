@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Home, MessageSquare, Map, User, Trash2, Phone, Mic, Send, Menu, LogOut, LogIn } from 'lucide-react'
+import { Home, MessageSquare, Map, User, Trash2, Phone, Send, Menu, LogOut, LogIn } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Switch } from './ui/switch'
@@ -225,16 +225,6 @@ export function DesktopView({
                 className="flex-1"
                 disabled={isThinking}
               />
-              <Button
-                type="button"
-                size="icon"
-                variant="outline"
-                className="shrink-0"
-                aria-label="Voice input"
-                disabled={isThinking}
-              >
-                <Mic className="w-5 h-5" />
-              </Button>
               <Button
                 type="submit"
                 size="icon"

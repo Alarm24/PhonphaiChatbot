@@ -1,6 +1,6 @@
 import { useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Phone, Mic, Send, Trash2, LogOut, LogIn } from 'lucide-react'
+import { Phone, Send, Trash2, LogOut, LogIn } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Switch } from './ui/switch'
@@ -135,16 +135,6 @@ export function MobileView({
             className="flex-1 text-base"
             disabled={isThinking}
           />
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="shrink-0 text-gray-600"
-            aria-label="Voice input"
-            disabled={isThinking}
-          >
-            <Mic className="w-5 h-5" />
-          </Button>
           <Button
             type="submit"
             size="icon"
