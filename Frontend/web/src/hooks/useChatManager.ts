@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import type { Message } from '../types'
 import { sendMessage as apiSendMessage } from '../services/api'
+import { useLanguage } from '../contexts/LanguageContext'
 
 const STORAGE_KEY_SESSION = 'phonphai_session_id'
 const STORAGE_KEY_MESSAGES = 'phonphai_messages'
@@ -39,6 +40,7 @@ function getOrCreateSessionId(): string {
 }
 
 export function useChatManager(greetingText: string) {
+  const { t } = useLanguage()
   const sessionIdRef = useRef<string>(getOrCreateSessionId())
 
   const [messages, setMessages] = useState<Message[]>(() => {
@@ -92,7 +94,7 @@ export function useChatManager(greetingText: string) {
     } catch {
       const errMsg: Message = {
         id: uuidv4(),
-        text: 'Sorry, I encountered an error. Please try again.',
+        text: t('errorMessage'),
         sender: 'bot',
         timestamp: new Date(),
       }
