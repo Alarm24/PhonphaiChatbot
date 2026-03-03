@@ -67,7 +67,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     assistantSubtitle: 'แชทบอทช่วยให้การใช้แอปพลิเคชันง่ายขึ้นและตอบคำถามภัยพิบัติเบื้องต้น',
     howCanIHelp: 'วันนี้ผมช่วยคุณได้อย่างไรบ้าง?',
     selectTopic: 'เลือกหัวข้อด้านล่างหรือพิมพ์คำถาม',
-    errorMessage: 'ขออภัย เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง',
+    errorMessage: 'ขออภัยครับเกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้งในภายหลังครับ',
     card_manual: 'คู่มือระบบ',
     card_manual_desc: 'เรียนรู้วิธีใช้งานแอปพลิเคชันพ้นภัย',
     card_relief: 'ขอชุดบรรเทาทุกข์',
