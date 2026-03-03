@@ -24,15 +24,6 @@ export function LoginPage() {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-lg overflow-hidden">
-        {/* Header */}
-        <div className="bg-[#D32F2F] px-8 py-10 text-center">
-          <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4">
-            <span className="text-[#D32F2F] font-bold text-2xl">P</span>
-          </div>
-          <h1 className="text-white text-2xl font-semibold">พนไผ่</h1>
-          <p className="text-red-200 text-sm mt-1">ระบบ AI สนับสนุนการจัดการภัยพิบัติ</p>
-        </div>
-
         {/* Form */}
         <form onSubmit={handleSubmit} className="px-8 py-8 space-y-4">
           <div className="space-y-1">

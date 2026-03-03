@@ -1,0 +1,35 @@
+
+flowchart TD
+    UserDev["User Devices (Web)"]
+
+    subgraph Docker["Docker Compose"]
+        direction TB
+        ApiGw["api-gateway<br/>(FastAPI · port 8080)"]
+
+        subgraph AppServices["Application Services"]
+            direction LR
+            AgentSvc["agent<br/>(LangGraph · port 50052)"]
+            RetrieverSvc["retriever<br/>(Hybrid Search + Reranking · port 50051)"]
+        end
+
+        subgraph DataStores["Data Stores"]
+            direction LR
+            Chroma[("chroma<br/>(ChromaDB)")]
+            Mongo[("mongo<br/>(MongoDB)")]
+        end
+
+        ApiGw --> AgentSvc
+        ApiGw --> RetrieverSvc
+        AgentSvc --> RetrieverSvc
+        RetrieverSvc --> Chroma
+        RetrieverSvc --> Mongo
+    end
+
+    UserDev --> ApiGw
+
+    Gemini["OpenRouter · Gemini API<br/>(google/gemini-2.5-flash)"]
+    Legacy["Legacy PhonPhai Server"]
+
+    AgentSvc -- "HTTPS" --> Gemini
+    AgentSvc -- "HTTPS" --> Legacy
+

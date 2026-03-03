@@ -1,0 +1,34 @@
+
+flowchart TD
+    User(("User"))
+    Frontend["Frontend (Web/Mobile UI)"]
+    ApiGateway["API Gateway"]
+
+    subgraph Microservices["Microservices Layer (gRPC / Docker)"]
+        direction TB
+        ChatSvc["AI Agent<br/>(LangGraph Orchestrator)"]
+        Retrieval["Retrieval Service<br/>(Hybrid Search + BGE Reranking)"]
+        ChatSvc -- "gRPC" --> Retrieval
+    end
+
+    subgraph External["External API"]
+        GeminiAPI["Gemini API<br/>(via OpenRouter)"]
+    end
+
+    subgraph DBs["Databases & External APIs"]
+        direction LR
+        Legacy[("PhonPhai API<br/>(Legacy Backend)")]
+        Chroma[("ChromaDB<br/>(Vector Store)")]
+        Mongo[("MongoDB<br/>(File Storage)")]
+    end
+
+    User --> Frontend
+    Frontend --> ApiGateway
+    ApiGateway -- "gRPC" --> ChatSvc
+    ApiGateway -- "gRPC" --> Retrieval
+
+    ChatSvc -- "HTTPS" --> GeminiAPI
+    ChatSvc -- "HTTPS" --> Legacy
+    Retrieval -- "Query" --> Chroma
+    Retrieval -- "Query" --> Mongo
+
