@@ -7,6 +7,8 @@ import { useLanguage } from '../contexts/LanguageContext'
 const STORAGE_KEY_SESSION = 'phonphai_session_id'
 const STORAGE_KEY_MESSAGES = 'phonphai_messages'
 
+const MOCK_DELAY_MS = Number(import.meta.env.VITE_MOCK_THINKING_MS ?? 0)
+
 function makeGreeting(greetingText: string): Message {
   return {
     id: uuidv4(),
@@ -91,7 +93,17 @@ export function useChatManager(greetingText: string) {
     setIsThinking(true)
 
     try {
-      const data = await apiSendMessage(sessionIdRef.current, text.trim())
+      let data
+      if (MOCK_DELAY_MS > 0) {
+        await new Promise((r) => setTimeout(r, MOCK_DELAY_MS))
+        data = {
+          session_id: sessionIdRef.current,
+          response: '[Mock] This is a test response from Phonphai.',
+          sources: [],
+        }
+      } else {
+        data = await apiSendMessage(sessionIdRef.current, text.trim())
+      }
       const botMsg: Message = {
         id: uuidv4(),
         text: data.response,

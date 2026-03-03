@@ -7,6 +7,9 @@ export type TranslationKey =
   | 'placeholder'
   | 'clearChat'
   | 'thinking'
+  | 'thinking_searching'
+  | 'thinking_almost'
+  | 'thinking_wait'
   | 'quickReply_flood'
   | 'quickReply_forgotPassword'
   | 'quickReply_contact'
@@ -33,6 +36,9 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     placeholder: 'Type your question...',
     clearChat: 'Clear Chat',
     thinking: 'Thinking...',
+    thinking_searching: 'Searching for information...',
+    thinking_almost: 'Almost there...',
+    thinking_wait: 'Just a moment more...',
     quickReply_flood: 'How to report a flood?',
     quickReply_forgotPassword: 'Forgot Password',
     quickReply_contact: 'Contact Official',
@@ -58,6 +64,9 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     placeholder: 'พิมพ์คำถามของคุณ...',
     clearChat: 'ล้างการสนทนา',
     thinking: 'กำลังคิด...',
+    thinking_searching: 'กำลังค้นหาข้อมูล...',
+    thinking_almost: 'เกือบได้แล้ว...',
+    thinking_wait: 'รอสักครู่นะครับ...',
     quickReply_flood: 'วิธีรายงานน้ำท่วม?',
     quickReply_forgotPassword: 'ลืมรหัสผ่าน',
     quickReply_contact: 'ติดต่อเจ้าหน้าที่',
