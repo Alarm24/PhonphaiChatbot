@@ -51,6 +51,16 @@ export function useChatManager(greetingText: string) {
   const [inputValue, setInputValue] = useState('')
   const [isThinking, setIsThinking] = useState(false)
 
+  // When language changes, retranslate the greeting if no conversation has started yet
+  useEffect(() => {
+    setMessages((prev) => {
+      if (prev.length === 1 && prev[0].sender === 'bot') {
+        return [{ ...prev[0], text: greetingText }]
+      }
+      return prev
+    })
+  }, [greetingText])
+
   // Persist messages to localStorage (skip thinking bubbles)
   useEffect(() => {
     const toStore = messages.filter((m) => !m.isThinking)
