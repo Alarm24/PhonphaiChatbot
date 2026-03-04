@@ -2,9 +2,12 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import type { Message } from '../types'
 import { sendMessage as apiSendMessage } from '../services/api'
+import { useLanguage } from '../contexts/LanguageContext'
 
 const STORAGE_KEY_SESSION = 'phonphai_session_id'
 const STORAGE_KEY_MESSAGES = 'phonphai_messages'
+
+const MOCK_DELAY_MS = Number(import.meta.env.VITE_MOCK_THINKING_MS ?? 0)
 
 function makeGreeting(greetingText: string): Message {
   return {
@@ -39,6 +42,7 @@ function getOrCreateSessionId(): string {
 }
 
 export function useChatManager(greetingText: string) {
+  const { t } = useLanguage()
   const sessionIdRef = useRef<string>(getOrCreateSessionId())
 
   const [messages, setMessages] = useState<Message[]>(() => {
@@ -48,6 +52,16 @@ export function useChatManager(greetingText: string) {
 
   const [inputValue, setInputValue] = useState('')
   const [isThinking, setIsThinking] = useState(false)
+
+  // When language changes, retranslate the greeting if no conversation has started yet
+  useEffect(() => {
+    setMessages((prev) => {
+      if (prev.length === 1 && prev[0].sender === 'bot') {
+        return [{ ...prev[0], text: greetingText }]
+      }
+      return prev
+    })
+  }, [greetingText])
 
   // Persist messages to localStorage (skip thinking bubbles)
   useEffect(() => {
@@ -79,7 +93,17 @@ export function useChatManager(greetingText: string) {
     setIsThinking(true)
 
     try {
-      const data = await apiSendMessage(sessionIdRef.current, text.trim())
+      let data
+      if (MOCK_DELAY_MS > 0) {
+        await new Promise((r) => setTimeout(r, MOCK_DELAY_MS))
+        data = {
+          session_id: sessionIdRef.current,
+          response: '[Mock] This is a test response from Phonphai.',
+          sources: [],
+        }
+      } else {
+        data = await apiSendMessage(sessionIdRef.current, text.trim())
+      }
       const botMsg: Message = {
         id: uuidv4(),
         text: data.response,
@@ -92,7 +116,7 @@ export function useChatManager(greetingText: string) {
     } catch {
       const errMsg: Message = {
         id: uuidv4(),
-        text: 'Sorry, I encountered an error. Please try again.',
+        text: t('errorMessage'),
         sender: 'bot',
         timestamp: new Date(),
       }

@@ -1,5 +1,6 @@
 import { useRef, useEffect } from 'react'
-import { Phone, Mic, Send, Trash2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Send, Trash2, LogOut, LogIn } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Switch } from './ui/switch'
@@ -7,6 +8,7 @@ import { ScrollArea } from './ui/scroll-area'
 import { QuickReplyChips } from './QuickReplyChips'
 import { ChatMessage } from './ChatMessage'
 import { useLanguage } from '../contexts/LanguageContext'
+import { useAuth } from '../contexts/AuthContext'
 import type { Message } from '../types'
 
 interface MobileViewProps {
@@ -29,6 +31,8 @@ export function MobileView({
   isThinking,
 }: MobileViewProps) {
   const { language, toggleLanguage, t } = useLanguage()
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -54,8 +58,8 @@ export function MobileView({
             <h1 className="text-lg">Phonphai</h1>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1">
               <span className="text-xs font-medium">{t('languageLabel')}</span>
               <Switch
                 checked={language === 'english'}
@@ -72,14 +76,27 @@ export function MobileView({
             >
               <Trash2 className="w-4 h-4" />
             </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="text-white hover:bg-red-600"
-              aria-label="Call Staff"
-            >
-              <Phone className="w-5 h-5" />
-            </Button>
+            {user ? (
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={logout}
+                className="text-white hover:bg-red-600"
+                aria-label="Logout"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            ) : (
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => navigate('/login')}
+                className="text-white hover:bg-red-600"
+                aria-label="Login"
+              >
+                <LogIn className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
       </header>
@@ -110,16 +127,6 @@ export function MobileView({
             className="flex-1 text-base"
             disabled={isThinking}
           />
-          <Button
-            type="button"
-            size="icon"
-            variant="ghost"
-            className="shrink-0 text-gray-600"
-            aria-label="Voice input"
-            disabled={isThinking}
-          >
-            <Mic className="w-5 h-5" />
-          </Button>
           <Button
             type="submit"
             size="icon"

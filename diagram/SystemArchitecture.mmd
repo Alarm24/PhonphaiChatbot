@@ -1,0 +1,32 @@
+flowchart TD
+    User(("User"))
+    Frontend["Frontend (Web/Mobile UI)"]
+    ApiGateway["API Gateway(Auth & PDPA logging)"]
+
+    subgraph Microservices["Microservices Layer (gRPC / Docker)"]
+        direction TB
+        ChatSvc["AI Agent (LangGraph Orchestrator)"]
+
+        Retrieval["Retrieval Service (Vector search)"]
+        Reranking["Reranking Service (BGE M3)"]
+        Generation["Generation Service (Gemini Client)"]
+
+        ChatSvc -- "gRPC" --> Retrieval
+        ChatSvc -- "gRPC" --> Reranking
+        ChatSvc -- "gRPC" --> Generation
+    end
+
+    subgraph DBs["Databases & External APIs"]
+        direction LR
+        Redis[("Redis(Session State)")]
+        Legacy[("PhonPhai API(Legacy Backend)")]
+        Chroma[("ChromaDB (Vector Store)")]
+    end
+
+    User --> Frontend
+    Frontend --> ApiGateway
+    ApiGateway --> ChatSvc
+    
+    ChatSvc -- "TCP / Native" --> Redis
+    ChatSvc -- "HTTPS" --> Legacy
+    Retrieval -- "Query" --> Chroma

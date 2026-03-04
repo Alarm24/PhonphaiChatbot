@@ -1,0 +1,24 @@
+
+sequenceDiagram
+    participant U as User
+    participant F as Frontend
+    participant A as API Gateway
+    participant C as AI Agent
+    participant R as Retriever
+    participant G as Gemini API
+
+    autonumber
+    U->>F: Send message
+    F->>A: Forward request (HTTP)
+    A->>C: Route request (gRPC)
+    C->>R: Search query (gRPC)
+    Note over R: Hybrid Search (Dense+BM25) → RRF → BGE Rerank → Top-5
+    R-->>C: Return Top-5 Scored Chunks
+    C->>G: Generate answer with context (via OpenRouter)
+    G-->>C: Final Answer with citation markers
+    C-->>A: Return Answer + Sources
+    A-->>F: Deliver Answer
+    F-->>U: Display Answer
+
+    Note over C, G: Total Latency <= 5 seconds
+

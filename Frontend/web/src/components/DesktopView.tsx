@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
-import { Home, MessageSquare, Map, User, Trash2, Phone, Mic, Send, Menu } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Home, MessageSquare, Map, User, Trash2, Send, Menu, LogOut, LogIn } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Switch } from './ui/switch'
@@ -10,6 +11,7 @@ import { Separator } from './ui/separator'
 import { QuickReplyChips } from './QuickReplyChips'
 import { ChatMessage } from './ChatMessage'
 import { useLanguage } from '../contexts/LanguageContext'
+import { useAuth } from '../contexts/AuthContext'
 import type { Message } from '../types'
 
 interface DesktopViewProps {
@@ -39,10 +41,10 @@ export function DesktopView({
   isThinking,
 }: DesktopViewProps) {
   const { language, toggleLanguage, t } = useLanguage()
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const showWelcomeScreen = messages.length === 1
-
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
@@ -136,20 +138,35 @@ export function DesktopView({
               <div className="flex items-center gap-3">
                 <Button
                   variant="outline"
-                  size="icon"
-                  className="text-[#D32F2F] border-[#D32F2F] hover:bg-red-50"
-                  aria-label="Call Staff"
-                >
-                  <Phone className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant="outline"
                   onClick={onClearChat}
                   className="text-[#D32F2F] border-[#D32F2F] hover:bg-red-50"
                 >
                   <Trash2 className="w-4 h-4 mr-2" />
                   {t('clearChat')}
                 </Button>
+                {user ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-700">{user}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={logout}
+                      aria-label="Logout"
+                      className="text-gray-500 hover:text-red-600"
+                    >
+                      <LogOut className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate('/login')}
+                    className="text-gray-600 border-gray-300 hover:bg-gray-50"
+                  >
+                    <LogIn className="w-4 h-4 mr-2" />
+                    เข้าสู่ระบบ
+                  </Button>
+                )}
               </div>
             </div>
           </header>
@@ -158,14 +175,15 @@ export function DesktopView({
           <div className="flex-1 overflow-hidden bg-white">
             <ScrollArea className="h-full">
               <div ref={scrollRef} className="p-6">
-                {showWelcomeScreen ? (
-                  <div className="flex flex-col items-center justify-center min-h-[500px] space-y-8">
-                    <div className="text-center space-y-3">
-                      <h2 className="text-3xl text-gray-900">{t('howCanIHelp')}</h2>
-                      <p className="text-gray-600">{t('selectTopic')}</p>
-                    </div>
+                <div className="space-y-4">
+                  {messages.map((message) => (
+                    <ChatMessage key={message.id} message={message} />
+                  ))}
+                </div>
 
-                    {/* FAQ Grid */}
+                {messages.length === 1 && (
+                  <div className="mt-6 space-y-3">
+                    <p className="text-sm text-gray-500">{t('selectTopic')}</p>
                     <div className="grid grid-cols-2 gap-4 w-full max-w-2xl">
                       {suggestionCards.map((card) => (
                         <Card
@@ -178,12 +196,6 @@ export function DesktopView({
                         </Card>
                       ))}
                     </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {messages.map((message) => (
-                      <ChatMessage key={message.id} message={message} />
-                    ))}
                   </div>
                 )}
               </div>
@@ -205,16 +217,6 @@ export function DesktopView({
                 className="flex-1"
                 disabled={isThinking}
               />
-              <Button
-                type="button"
-                size="icon"
-                variant="outline"
-                className="shrink-0"
-                aria-label="Voice input"
-                disabled={isThinking}
-              >
-                <Mic className="w-5 h-5" />
-              </Button>
               <Button
                 type="submit"
                 size="icon"
