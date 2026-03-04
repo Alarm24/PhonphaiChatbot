@@ -1,0 +1,30 @@
+graph TD
+    classDef default fill:#fff,stroke:#333,stroke-width:1.5px
+    classDef db fill:#fff,stroke:#333,stroke-width:1.5px
+    
+    subgraph Offline["1. Offline Ingestion Pipeline"]
+        direction TB
+        A["Raw PDFs"] --> A1["LLM Phasing"]
+        A1 --> B["Semantic Chunks"]
+        B --> C1["E5 Embeddings"]
+        B --> C2["BM25 Encoder"]
+        C2 --> C3["Index"]
+        C1 --> D[("ChromaDB<br/>(Knowledge Base)")]
+        C3 --> D
+    end
+    
+    subgraph Runtime["2. Runtime Orchestration<br/>(LangGraph)"]
+        direction TB
+        E["User Ask Question"] --> F["Hybrid Retrieval (Vector +<br/>BM25)"]
+        F --> G["Top-k Merged Chunks"]
+        G --> H["BGE M3 Reranker"]
+        H --> I["Top-n Refined Context"]
+        I --> J["Context + Prompt"]
+        J --> K["Gemini API"]
+        K --> L["Final Answer"]
+    end
+    
+    D -.-> F
+    
+    style Offline fill:#f8f9fa,stroke:#1e293b,stroke-width:2px,color:#000
+    style Runtime fill:#f8f9fa,stroke:#1e293b,stroke-width:2px,color:#000
