@@ -25,6 +25,7 @@ class CitedResponse(BaseModel):
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
     retrieved_chunks: list
+    final_sources: list
 
 
 settings = get_settings()
@@ -73,6 +74,7 @@ def format_final_answer(state: AgentState):
         final_text = answer
     else:
         final_text = answer + "\n\n### Sources:\n"
+        final_sources_metadata = []
         unique_indices = sorted(list(set(used_indices)))
 
         for index in unique_indices:
@@ -81,12 +83,19 @@ def format_final_answer(state: AgentState):
             # Verify the index actually exists (prevents LLM hallucinating fake indices)
             if 0 <= actual_idx < len(retrieved_chunks):
                 chunk = retrieved_chunks[actual_idx]
+                final_sources_metadata.append(
+                    {
+                        "title": chunk.get("file_name", "Unknown Document"),
+                        "theme": chunk.get("category", "Disaster Prevention"),
+                        "content": chunk.get("content", ""),
+                    }
+                )
 
                 # Append the guaranteed real citation from the artifact
                 final_text += f"* **[{index}]** {chunk['file_name']} (Page {chunk['page']})\n"
 
     # Output the beautifully formatted text to the user
-    return {"messages": [AIMessage(content=final_text)]}
+    return {"messages": [AIMessage(content=final_text)], "final_sources": final_sources_metadata}
 
 
 def should_continue(state: AgentState):
