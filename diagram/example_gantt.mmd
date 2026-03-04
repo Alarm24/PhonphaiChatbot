@@ -1,0 +1,19 @@
+gantt
+    title Example Project Roadmap
+    dateFormat YYYY-MM-DD
+    axisFormat %m/%d
+    
+    section Phase 1: Planning
+    Requirements Gathering  :done,    req1, 2024-03-01, 5d
+    System Architecture     :active,  arch1, after req1, 7d
+    UI/UX Design            :         ui1, after req1, 10d
+    
+    section Phase 2: Development
+    Backend API Setup       :         dev1, after arch1, 14d
+    Frontend Implementation :         dev2, after ui1, 14d
+    Database Integration    :         dev3, after dev1, 7d
+    
+    section Phase 3: Testing & Launch
+    Unit Testing            :         test1, after dev2, 5d
+    User Acceptance Testing :         uat1, after test1, 5d
+    Production Deployment   :milestone, m1, after uat1, 0d
