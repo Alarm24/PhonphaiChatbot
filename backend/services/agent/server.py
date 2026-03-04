@@ -24,7 +24,7 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
                 sources.append(
                     chatbot_pb2.Source(
                         title="Retrieved Document",
-                        theme="UNKNOWN",
+                        theme=msg.artifact.get("theme", "Unknown Theme"),
                         content=msg.content[:200] + "...",
                     )
                 )

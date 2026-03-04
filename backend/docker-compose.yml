@@ -9,12 +9,15 @@ services:
 
   chroma:
     image: chromadb/chroma:0.5.3
+    ports:
+      - "8000:8000" #for development, remove in production
     volumes:
       - ./data/chroma_data:/chroma/chroma
     networks:
       - rag_net
     environment:
       - ANONYMIZED_TELEMETRY=False
+      - CHROMA_SERVER_CORS_ALLOW_ORIGINS=["*"]
 
   # --- Microservices ---
   retriever:
