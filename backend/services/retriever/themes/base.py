@@ -14,7 +14,10 @@ class BaseTheme:
 
         # 1. Initialize Cross-Encoder Reranker
         log.info(f"Loading Reranker Model: {self.settings.RERANK_MODEL_NAME}")
-        self.reranker = CrossEncoder(self.settings.RERANK_MODEL_NAME)
+        self.reranker = CrossEncoder(
+            self.settings.RERANK_MODEL_NAME, 
+            device='cuda'
+        )
 
         # 2. Initialize variables for local BM25 indexing
         self.corpus_docs = []
