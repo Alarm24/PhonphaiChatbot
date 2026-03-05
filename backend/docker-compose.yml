@@ -27,6 +27,13 @@ services:
       args:
         EMBEDDING_MODEL_NAME: intfloat/multilingual-e5-large
         RERANK_MODEL_NAME: BAAI/bge-reranker-v2-m3
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     environment:
       - MONGO_URI=mongodb://mongo:27017
       - CHROMA_HOST=chroma
@@ -58,6 +65,10 @@ services:
       - RETRIEVER_HOST=retriever:50051
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - ANONYMIZED_TELEMETRY=False
+      - LANGCHAIN_TRACING_V2=true
+      - LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
+      - LANGCHAIN_PROJECT=phonphai-agent
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(('localhost', 50052))"]

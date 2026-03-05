@@ -20,6 +20,7 @@ Python-based microservices that power retrieval-augmented responses for the Phon
    ```bash
    cp .env.example .env
    # set OPENROUTER_API_KEY=<your key>
+   # set LANGCHAIN_API_KEY=<your key>
    ```
 2) Start the full stack (detached):
    ```bash
@@ -73,6 +74,7 @@ Python-based microservices that power retrieval-augmented responses for the Phon
    ```bash
    cp .env.example .env
    # set OPENROUTER_API_KEY=<your key>
+   # set LANGCHAIN_API_KEY=<your key>
    ```
 2) Start the full stack (detached):
    ```bash
