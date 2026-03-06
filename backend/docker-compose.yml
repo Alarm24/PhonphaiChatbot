@@ -47,13 +47,17 @@ services:
       - CHUNK_SIZE=1000
       - CHUNK_OVERLAP=200
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - LANGCHAIN_TRACING_V2=true
+      - LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
+      - LANGCHAIN_PROJECT=phonphai-phaser
     restart: unless-stopped     
     healthcheck:              
       test: ["CMD", "python", "-c", "import socket; socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(('localhost', 50051))"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 120s
+      start_period: 500s
     networks:
       - rag_net
 

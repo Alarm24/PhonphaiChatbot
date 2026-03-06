@@ -78,11 +78,11 @@ def format_final_answer(state: AgentState):
             break  # We found the most recent search results!
 
     # Append the real citations
+    final_sources_metadata = []
     if not used_indices or not retrieved_chunks:
         final_text = answer
     else:
         final_text = answer + "\n\n### Sources:\n"
-        final_sources_metadata = []
         unique_indices = sorted(list(set(used_indices)))
 
         for index in unique_indices:
@@ -94,7 +94,7 @@ def format_final_answer(state: AgentState):
                 final_sources_metadata.append(
                     {
                         "title": chunk.get("file_name", "Unknown Document"),
-                        "theme": chunk.get("category", "Disaster Prevention"),
+                        "theme": chunk.get("theme", "Unknown Theme"),
                         "content": chunk.get("content", ""),
                     }
                 )
@@ -110,10 +110,13 @@ def should_continue(state: AgentState):
     """Decide: Call a tool OR finish?"""
     last_message = state["messages"][-1]
 
-    if last_message.tool_calls:
-        return "tools"
+    if not last_message.tool_calls:
+        return END
 
-    return END
+    if any(tc["name"] == "CitedResponse" for tc in last_message.tool_calls):
+        return "format_answer"
+
+    return "tools"
 
 
 workflow = StateGraph(AgentState)

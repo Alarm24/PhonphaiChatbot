@@ -24,7 +24,7 @@ class ChromaDB:
 
         lc_ef = HuggingFaceEmbeddings(
             model_name=settings.EMBEDDING_MODEL_NAME,
-            model_kwargs={'device': 'cudu'} 
+            model_kwargs={'device': 'cuda'} 
         )
         self.ef = LangChainEmbeddingAdapter(lc_ef)
 

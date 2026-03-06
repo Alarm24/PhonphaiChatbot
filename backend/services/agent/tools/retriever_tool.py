@@ -3,7 +3,7 @@ from langchain_core.tools import tool
 from state import AgentState
 
 
-def _execute_search(query: str, theme_enum) -> tuple[str, list]:
+def _execute_search(query: str, theme_enum, theme_name: str) -> tuple[str, list]:
     """Helper to perform the raw gRPC call using the persistent connection."""
     try:
         client = AgentState.retriever_client
@@ -24,7 +24,14 @@ def _execute_search(query: str, theme_enum) -> tuple[str, list]:
             context += f"Content: {res.content}\n"
 
             # 2. Save the raw metadata for the backend to use later
-            raw_chunks.append({"file_name": res.file_name, "page": page_info})
+            raw_chunks.append(
+                {
+                    "file_name": res.file_name,
+                    "page": page_info,
+                    "content": res.content,
+                    "theme": theme_name,
+                }
+            )
 
         if not raw_chunks:
             return "No relevant documents found.", []
@@ -40,19 +47,19 @@ def _execute_search(query: str, theme_enum) -> tuple[str, list]:
 @tool(response_format="content_and_artifact")
 def search_remedy_tickets(query: str) -> tuple[str, list]:
     """Use this to find solutions for IT tickets, error logs, or specific remedy IDs."""
-    return _execute_search(query, retriever_pb2.REMEDY)
+    return _execute_search(query, retriever_pb2.REMEDY, "Remedy")
 
 
 @tool(response_format="content_and_artifact")
 def search_disaster_protocols(query: str) -> tuple[str, list]:
     """Use this ONLY for emergency situations, server crashes, or disaster recovery protocols."""
-    return _execute_search(query, retriever_pb2.DISASTER)
+    return _execute_search(query, retriever_pb2.DISASTER, "Disaster")
 
 
 @tool(response_format="content_and_artifact")
 def search_user_manuals(query: str) -> tuple[str, list]:
     """Use this to look up 'How-To' guides, installation steps, or standard operating procedures."""
-    return _execute_search(query, retriever_pb2.MANUAL)
+    return _execute_search(query, retriever_pb2.MANUAL, "Manual")
 
 
 # List of tools to bind to the model

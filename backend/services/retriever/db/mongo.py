@@ -14,16 +14,13 @@ class MongoDB:
         self.files_collection = self.db["files"]
 
     def save_file(self, filename, theme, content_bytes, content_type):
-        """Saves raw file metadata and content"""
+        """Saves file metadata without storing raw bytes in MongoDB."""
         file_doc = {
             "file_name": filename,
             "theme": theme,
             "content_type": content_type,
             "size_bytes": len(content_bytes),
             "created_at": datetime.datetime.utcnow(),
-            # In a real heavy production, store binary in GridFS or S3.
-            # For this RAG setup, storing text/binary < 16MB is fine in doc.
-            "data": content_bytes,
         }
         result = self.files_collection.insert_one(file_doc)
         return str(result.inserted_id)

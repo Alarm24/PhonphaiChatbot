@@ -36,16 +36,18 @@ ARG RERANK_MODEL_NAME="BAAI/bge-reranker-v2-m3"
 ARG EMBEDDING_MODEL_NAME="intfloat/multilingual-e5-large"
 
 # 8. Bake models - Use the same python executable
-RUN python -c "import sentence_transformers; print('Found it!'); \
+RUN --mount=type=cache,target=/root/.cache/huggingface \
+    python -c "\
+import sentence_transformers; \
 from sentence_transformers import CrossEncoder; \
 from langchain_huggingface import HuggingFaceEmbeddings; \
 rerank_model = '${RERANK_MODEL_NAME}'; \
 embed_model = '${EMBEDDING_MODEL_NAME}'; \
-print(f'⏳ Downloading Reranker Model: {rerank_model}...'); \
+print(f'⏳ Loading Reranker Model: {rerank_model}...'); \
 CrossEncoder(rerank_model); \
-print(f'⏳ Downloading Embedding Model: {embed_model}...'); \
+print(f'⏳ Loading Embedding Model: {embed_model}...'); \
 HuggingFaceEmbeddings(model_name=embed_model); \
-print('✅ All models successfully baked into image!')"
+print('✅ Models successfully cached/baked!')"
 
 COPY services/retriever/ .
 
