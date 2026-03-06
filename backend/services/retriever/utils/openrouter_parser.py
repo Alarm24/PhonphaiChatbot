@@ -6,6 +6,7 @@ from config import get_settings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from logger import log
 from utils.prompt import PHARSER_PROMPT
+import os
 
 
 def process_and_chunk_pdf_with_openrouter(file_bytes: bytes, filename: str) -> list:
@@ -14,6 +15,12 @@ def process_and_chunk_pdf_with_openrouter(file_bytes: bytes, filename: str) -> l
 
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY is not configured in environment.")
+    
+    # --- LangSmith Configuration ---
+    os.environ["LANGCHAIN_TRACING_V2"] =settings.LANGCHAIN_TRACING_V2
+    os.environ["LANGCHAIN_ENDPOINT"] = settings.LANGCHAIN_ENDPOINT
+    os.environ["LANGCHAIN_API_KEY"] = settings.LANGCHAIN_API_KEY
+    os.environ["LANGCHAIN_PROJECT"] = settings.LANGCHAIN_PROJECT
 
     log.info(f"🚀 Preparing {filename} for OpenRouter API...")
     base64_pdf = base64.b64encode(file_bytes).decode("utf-8")
