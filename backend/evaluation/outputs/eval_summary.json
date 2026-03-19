@@ -1,0 +1,54 @@
+[
+  {
+    "theme": "manual",
+    "question_type": "human_question",
+    "testcase_count": 13,
+    "precision_mean": 0.187132,
+    "recall_mean": 0.667582,
+    "f1_score_mean": 0.26737,
+    "correctness_mean": 0.153846,
+    "helpfulness_mean": 0.615385,
+    "irrelevancy_mean": 0.461538,
+    "extraneousness_mean": 0.538462,
+    "conciseness_mean": 0.0
+  },
+  {
+    "theme": "manual",
+    "question_type": "llm_question",
+    "testcase_count": 13,
+    "precision_mean": 0.194116,
+    "recall_mean": 0.728022,
+    "f1_score_mean": 0.284015,
+    "correctness_mean": 0.615385,
+    "helpfulness_mean": 0.461538,
+    "irrelevancy_mean": 0.384615,
+    "extraneousness_mean": 0.307692,
+    "conciseness_mean": 0.153846
+  },
+  {
+    "theme": "overall",
+    "question_type": "human_question",
+    "testcase_count": 13,
+    "precision_mean": 0.187132,
+    "recall_mean": 0.667582,
+    "f1_score_mean": 0.26737,
+    "correctness_mean": 0.153846,
+    "helpfulness_mean": 0.615385,
+    "irrelevancy_mean": 0.461538,
+    "extraneousness_mean": 0.538462,
+    "conciseness_mean": 0.0
+  },
+  {
+    "theme": "overall",
+    "question_type": "llm_question",
+    "testcase_count": 13,
+    "precision_mean": 0.194116,
+    "recall_mean": 0.728022,
+    "f1_score_mean": 0.284015,
+    "correctness_mean": 0.615385,
+    "helpfulness_mean": 0.461538,
+    "irrelevancy_mean": 0.384615,
+    "extraneousness_mean": 0.307692,
+    "conciseness_mean": 0.153846
+  }
+]

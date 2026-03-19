@@ -1,0 +1,5 @@
+﻿theme,question_type,testcase_count,precision_mean,recall_mean,f1_score_mean,correctness_mean,helpfulness_mean,irrelevancy_mean,extraneousness_mean,conciseness_mean
+manual,human_question,13,0.187132,0.667582,0.26737,0.153846,0.615385,0.461538,0.538462,0.0
+manual,llm_question,13,0.194116,0.728022,0.284015,0.615385,0.461538,0.384615,0.307692,0.153846
+overall,human_question,13,0.187132,0.667582,0.26737,0.153846,0.615385,0.461538,0.538462,0.0
+overall,llm_question,13,0.194116,0.728022,0.284015,0.615385,0.461538,0.384615,0.307692,0.153846
