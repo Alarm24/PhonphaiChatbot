@@ -9,7 +9,11 @@ from .models import EXPECTED_TOOL_BY_THEME
 from .text_utils import normalize_text
 
 
-def call_chat_endpoint(chat_endpoint: str, question: str, testcase_id: str) -> tuple[str, list[dict[str, str]]]:
+def call_chat_endpoint(
+    chat_endpoint: str,
+    question: str,
+    testcase_id: str,
+) -> tuple[str, list[dict[str, str]], list[str]]:
     payload = {
         "session_id": f"eval-{testcase_id}-{uuid.uuid4().hex[:8]}",
         "message": question,
@@ -39,21 +43,35 @@ def call_chat_endpoint(chat_endpoint: str, question: str, testcase_id: str) -> t
         sources = []
 
     normalized_sources = []
+    selected_tools: list[str] = []
     for item in sources:
         if isinstance(item, dict):
-            normalized_sources.append(
-                {
-                    "title": normalize_text(item.get("title")),
-                    "theme": normalize_text(item.get("theme")),
-                    "content": normalize_text(item.get("content")),
-                }
-            )
-    return answer, normalized_sources
+            normalized_item = {
+                "title": normalize_text(item.get("title")),
+                "theme": normalize_text(item.get("theme")),
+                "content": normalize_text(item.get("content")),
+            }
+            if (
+                normalized_item["title"] == "__selected_tools__"
+                and normalized_item["theme"] == "__meta__"
+            ):
+                selected_tools = [
+                    tool_name
+                    for tool_name in normalized_item["content"].split("|")
+                    if normalize_text(tool_name)
+                ]
+                continue
+            normalized_sources.append(normalized_item)
+    return answer, normalized_sources, selected_tools
 
 
-def evaluate_tool_usage(theme: str, retrieved_sources: list[dict[str, str]]) -> tuple[str, str, int]:
+def evaluate_tool_usage(
+    theme: str,
+    retrieved_sources: list[dict[str, str]],
+    selected_tools: list[str] | None = None,
+) -> tuple[str, str, int]:
     expected_tool = EXPECTED_TOOL_BY_THEME[theme]
-    actual_tool = infer_actual_tool(retrieved_sources)
+    actual_tool = selected_tools[0] if selected_tools else infer_actual_tool(retrieved_sources)
     tool_called_correctly = int(bool(actual_tool) and actual_tool == expected_tool)
     return expected_tool, actual_tool, tool_called_correctly
 

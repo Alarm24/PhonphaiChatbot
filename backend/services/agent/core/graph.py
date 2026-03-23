@@ -1,5 +1,6 @@
-from typing import Annotated, TypedDict
 import os
+from operator import add
+from typing import Annotated, TypedDict
 
 from config import get_settings
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
@@ -27,6 +28,7 @@ class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
     retrieved_chunks: list
     final_sources: list
+    selected_tools: Annotated[list[str], add]
 
 
 settings = get_settings()
@@ -53,6 +55,13 @@ def agent_node(state: AgentState):
     messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
 
     response = model_with_tools.invoke(messages)
+
+    selected_tools = [
+        tool_call["name"] for tool_call in response.tool_calls if tool_call["name"] != "CitedResponse"
+    ]
+
+    if selected_tools:
+        return {"messages": [response], "selected_tools": selected_tools}
 
     return {"messages": [response]}
 
@@ -102,8 +111,11 @@ def format_final_answer(state: AgentState):
                 # Append the guaranteed real citation from the artifact
                 final_text += f"* **[{index}]** {chunk['file_name']} (Page {chunk['page']})\n"
 
-    # Output the beautifully formatted text to the user
-    return {"messages": [AIMessage(content=final_text)], "final_sources": final_sources_metadata}
+    return {
+        "messages": [AIMessage(content=final_text)],
+        "retrieved_chunks": retrieved_chunks,
+        "final_sources": final_sources_metadata,
+    }
 
 
 def should_continue(state: AgentState):

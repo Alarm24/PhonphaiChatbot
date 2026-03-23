@@ -34,6 +34,6 @@ def get_eval_settings() -> EvalSettings:
         or "http://localhost:8080/api/v1/chat/",
         judge_endpoint=normalize_text(os.getenv("EVAL_JUDGE_ENDPOINT"))
         or "https://openrouter.ai/api/v1/chat/completions",
-        judge_model=normalize_text(os.getenv("EVAL_JUDGE_MODEL")) or "google/gemini-2.5-flash",
+        judge_model=normalize_text(os.getenv("EVAL_JUDGE_MODEL")) or "google/gemini-3-flash-preview",
         judge_temperature=judge_temperature,
     )

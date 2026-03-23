@@ -12,13 +12,28 @@ from .models import EvalRow
 from .text_utils import contains_thai, normalize_text
 
 
+def build_retrieved_context(retrieved_sources: list[dict[str, str]]) -> str:
+    parts: list[str] = []
+    for item in retrieved_sources:
+        content = normalize_text(item.get("content"))
+        if content:
+            parts.append(content)
+    return "\n".join(parts)
+
+
 def tokenize_for_overlap(text: str) -> list[str]:
     normalized = normalize_text(text).lower()
     if not normalized:
         return []
 
+    if contains_thai(normalized):
+        compact = re.sub(r"\s+", "", normalized)
+        if len(compact) < 3:
+            return list(compact)
+        return [compact[i : i + 3] for i in range(len(compact) - 2)]
+
     word_tokens = re.findall(r"[a-z0-9]+", normalized)
-    if word_tokens and (not contains_thai(normalized) or len(word_tokens) >= 3):
+    if word_tokens:
         return word_tokens
 
     compact = re.sub(r"\s+", "", normalized)
@@ -27,9 +42,9 @@ def tokenize_for_overlap(text: str) -> list[str]:
     return [compact[i : i + 3] for i in range(len(compact) - 2)]
 
 
-def compute_overlap_metrics(prediction: str, reference: str) -> tuple[float, float, float]:
-    pred_tokens = tokenize_for_overlap(prediction)
-    ref_tokens = tokenize_for_overlap(reference)
+def compute_overlap_metrics(retrieved_context: str, evidence: str) -> tuple[float, float, float]:
+    pred_tokens = tokenize_for_overlap(retrieved_context)
+    ref_tokens = tokenize_for_overlap(evidence)
 
     if not pred_tokens and not ref_tokens:
         return 1.0, 1.0, 1.0

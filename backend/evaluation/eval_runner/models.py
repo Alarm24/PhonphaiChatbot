@@ -64,6 +64,7 @@ class EvalRow:
     source: str
     model_response: str
     retrieved_sources: list[dict[str, str]]
+    retrieved_context: str
     expected_tool: str
     actual_tool: str
     tool_called_correctly: int
@@ -89,6 +90,7 @@ class EvalRow:
             "Evidence": self.evidence,
             "Source": self.source,
             "model_response": self.model_response,
+            "retrieved_context": self.retrieved_context,
             "expected_tool": self.expected_tool,
             "actual_tool": self.actual_tool,
             "tool_called_correctly": self.tool_called_correctly,

@@ -5,7 +5,13 @@ from pathlib import Path
 from .client import call_chat_endpoint, evaluate_tool_usage
 from .dataset import infer_theme_from_input_path, load_rows, normalize_row, validate_rows
 from .judge import judge_answer, load_judge_prompt
-from .metrics import aggregate_results, compute_overlap_metrics, write_csv, write_json
+from .metrics import (
+    aggregate_results,
+    build_retrieved_context,
+    compute_overlap_metrics,
+    write_csv,
+    write_json,
+)
 from .models import DEFAULT_JUDGE_PROMPT, EvalRow, QUESTION_FIELDS
 from .settings import get_eval_settings
 
@@ -52,7 +58,7 @@ def run_evaluation(
             if not prompt:
                 continue
 
-            answer, retrieved_sources = call_chat_endpoint(
+            answer, retrieved_sources, selected_tools = call_chat_endpoint(
                 chat_endpoint=chat_endpoint,
                 question=prompt,
                 testcase_id=str(row["testcase_id"]),
@@ -60,8 +66,13 @@ def run_evaluation(
             expected_tool, actual_tool, tool_called_correctly = evaluate_tool_usage(
                 theme=row["theme"],
                 retrieved_sources=retrieved_sources,
+                selected_tools=selected_tools,
             )
-            precision, recall, f1_score = compute_overlap_metrics(answer, row["Ground_truth"])
+            retrieved_context = build_retrieved_context(retrieved_sources)
+            precision, recall, f1_score = compute_overlap_metrics(
+                retrieved_context,
+                row["Evidence"],
+            )
             judgment = judge_answer(
                 judge_endpoint=settings.judge_endpoint,
                 api_key=settings.openrouter_api_key,
@@ -88,6 +99,7 @@ def run_evaluation(
                     source=row["Source"],
                     model_response=answer,
                     retrieved_sources=retrieved_sources,
+                    retrieved_context=retrieved_context,
                     expected_tool=expected_tool,
                     actual_tool=actual_tool,
                     tool_called_correctly=tool_called_correctly,

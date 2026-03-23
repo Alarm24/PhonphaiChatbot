@@ -27,6 +27,15 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
             )
             for source in source_items
         ]
+        selected_tools = final_state.get("selected_tools", [])
+        if selected_tools:
+            sources.append(
+                chatbot_pb2.Source(
+                    title="__selected_tools__",
+                    theme="__meta__",
+                    content="|".join(selected_tools),
+                )
+            )
 
         # 4. Return correct fields based on your chatbot.proto
         return chatbot_pb2.ChatResponse(
