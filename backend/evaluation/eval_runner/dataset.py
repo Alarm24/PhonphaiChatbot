@@ -135,7 +135,9 @@ def normalize_row(row: dict[str, Any], index: int, forced_theme: str) -> dict[st
     }
 
     if not normalized["Question"] and not normalized["Human_question"]:
-        raise ValueError(f"Row {index + 1}: at least one of Question or Human_question is required.")
+        raise ValueError(
+            f"Row {index + 1}: at least one of Question or Human_question is required."
+        )
     if not normalized["Ground_truth"]:
         raise ValueError(f"Row {index + 1}: Ground_truth is required.")
 

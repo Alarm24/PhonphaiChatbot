@@ -15,4 +15,4 @@ def normalize_theme(value: Any) -> str:
 
 
 def contains_thai(text: str) -> bool:
-    return any("\u0E00" <= char <= "\u0E7F" for char in text)
+    return any("\u0e00" <= char <= "\u0e7f" for char in text)

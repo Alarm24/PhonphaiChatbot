@@ -46,7 +46,12 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
                 )
             )
 
+        cost = float(final_state.get("cost") or 0.0)
+
         # 4. Return correct fields based on your chatbot.proto
         return chatbot_pb2.ChatResponse(
-            session_id=request.session_id, ai_message=ai_text, sources=sources
+            session_id=request.session_id,
+            ai_message=ai_text,
+            sources=sources,
+            cost=cost,
         )

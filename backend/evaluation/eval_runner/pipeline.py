@@ -1,3 +1,4 @@
+# ruff: noqa: T201
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,7 +13,7 @@ from .metrics import (
     write_csv,
     write_json,
 )
-from .models import DEFAULT_JUDGE_PROMPT, EvalRow, QUESTION_FIELDS
+from .models import DEFAULT_JUDGE_PROMPT, QUESTION_FIELDS, EvalRow
 from .settings import get_eval_settings
 
 
@@ -58,7 +59,13 @@ def run_evaluation(
             if not prompt:
                 continue
 
-            answer, retrieved_sources, raw_retrieved_chunks, selected_tools = call_chat_endpoint(
+            (
+                answer,
+                retrieved_sources,
+                raw_retrieved_chunks,
+                selected_tools,
+                cost,
+            ) = call_chat_endpoint(
                 chat_endpoint=chat_endpoint,
                 question=prompt,
                 testcase_id=str(row["testcase_id"]),
@@ -103,6 +110,7 @@ def run_evaluation(
                     expected_tool=expected_tool,
                     actual_tool=actual_tool,
                     tool_called_correctly=tool_called_correctly,
+                    cost=cost,
                     precision=precision,
                     recall=recall,
                     f1_score=f1_score,

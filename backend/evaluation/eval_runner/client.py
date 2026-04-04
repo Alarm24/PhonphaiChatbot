@@ -13,7 +13,7 @@ def call_chat_endpoint(
     chat_endpoint: str,
     question: str,
     testcase_id: str,
-) -> tuple[str, list[dict[str, str]], list[dict[str, str]], list[str]]:
+) -> tuple[str, list[dict[str, str]], list[dict[str, str]], list[str], float]:
     payload = {
         "session_id": f"eval-{testcase_id}-{uuid.uuid4().hex[:8]}",
         "message": question,
@@ -38,6 +38,10 @@ def call_chat_endpoint(
         ) from exc
 
     answer = normalize_text(body.get("response"))
+    try:
+        cost = float(body.get("cost") or 0.0)
+    except (TypeError, ValueError):
+        cost = 0.0
     sources = body.get("sources") or []
     if not isinstance(sources, list):
         sources = []
@@ -66,7 +70,7 @@ def call_chat_endpoint(
                 raw_retrieved_chunks.append(normalized_item)
                 continue
             normalized_sources.append(normalized_item)
-    return answer, normalized_sources, raw_retrieved_chunks, selected_tools
+    return answer, normalized_sources, raw_retrieved_chunks, selected_tools, cost
 
 
 def evaluate_tool_usage(

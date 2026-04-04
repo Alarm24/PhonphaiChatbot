@@ -57,7 +57,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 500s
     networks:
       - rag_net
 
@@ -94,6 +93,7 @@ services:
     environment:
       - AGENT_HOST=agent:50052
       - RETRIEVER_HOST=retriever:50051
+      - ANONYMIZED_TELEMETRY=False
     restart: unless-stopped      
     depends_on:
       retriever:

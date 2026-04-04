@@ -35,7 +35,9 @@ class EvalSettings:
 
 
 class JudgeDecision(BaseModel):
-    correctness: bool = Field(description="True if the answer is correct with respect to the reference.")
+    correctness: bool = Field(
+        description="True if the answer is correct with respect to the reference."
+    )
     helpfulness: bool = Field(
         description="True if the answer adds relevant details grounded in the context."
     )
@@ -45,9 +47,7 @@ class JudgeDecision(BaseModel):
     extraneousness: bool = Field(
         description="True if the answer contains information not found in the context."
     )
-    conciseness: bool = Field(
-        description="True if the answer is concise and avoids redundancy."
-    )
+    conciseness: bool = Field(description="True if the answer is concise and avoids redundancy.")
     rationale: str = Field(description="A brief explanation for the judgments.")
 
 
@@ -68,6 +68,7 @@ class EvalRow:
     expected_tool: str
     actual_tool: str
     tool_called_correctly: int
+    cost: float
     precision: float
     recall: float
     f1_score: float
@@ -94,6 +95,7 @@ class EvalRow:
             "expected_tool": self.expected_tool,
             "actual_tool": self.actual_tool,
             "tool_called_correctly": self.tool_called_correctly,
+            "cost": round(self.cost, 10),
             "precision": round(self.precision, 6),
             "recall": round(self.recall, 6),
             "f1_score": round(self.f1_score, 6),

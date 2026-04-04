@@ -88,7 +88,10 @@ def build_summary_row(theme: str, question_type: str, rows: list[EvalRow]) -> di
         "theme": theme,
         "question_type": question_type,
         "testcase_count": len(rows),
-        "tool_called_correctly_mean": round(mean_or_zero([row.tool_called_correctly for row in rows]), 6),
+        "tool_called_correctly_mean": round(
+            mean_or_zero([row.tool_called_correctly for row in rows]), 6
+        ),
+        "cost_mean": round(mean_or_zero([row.cost for row in rows]), 10),
         "precision_mean": round(mean_or_zero([row.precision for row in rows]), 6),
         "recall_mean": round(mean_or_zero([row.recall for row in rows]), 6),
         "f1_score_mean": round(mean_or_zero([row.f1_score for row in rows]), 6),

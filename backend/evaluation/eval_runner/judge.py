@@ -5,6 +5,8 @@ import re
 import urllib.error
 import urllib.request
 
+from langsmith import traceable
+
 from .models import JudgeDecision
 from .text_utils import normalize_text
 
@@ -105,6 +107,10 @@ def call_openrouter_judge(
     return JudgeDecision.model_validate(json.loads(extract_json_object(content)))
 
 
+@traceable(
+    run_type="llm",
+    metadata={"ls_provider": "openrouter", "ls_model_name": "google/gemini-2.5-flash"},
+)
 def judge_answer(
     judge_endpoint: str,
     api_key: str,
