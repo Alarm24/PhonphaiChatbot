@@ -13,7 +13,7 @@ def call_chat_endpoint(
     chat_endpoint: str,
     question: str,
     testcase_id: str,
-) -> tuple[str, list[dict[str, str]], list[str]]:
+) -> tuple[str, list[dict[str, str]], list[dict[str, str]], list[str]]:
     payload = {
         "session_id": f"eval-{testcase_id}-{uuid.uuid4().hex[:8]}",
         "message": question,
@@ -43,6 +43,7 @@ def call_chat_endpoint(
         sources = []
 
     normalized_sources = []
+    raw_retrieved_chunks = []
     selected_tools: list[str] = []
     for item in sources:
         if isinstance(item, dict):
@@ -61,8 +62,11 @@ def call_chat_endpoint(
                     if normalize_text(tool_name)
                 ]
                 continue
+            if normalized_item["theme"] == "__retrieved_chunk__":
+                raw_retrieved_chunks.append(normalized_item)
+                continue
             normalized_sources.append(normalized_item)
-    return answer, normalized_sources, selected_tools
+    return answer, normalized_sources, raw_retrieved_chunks, selected_tools
 
 
 def evaluate_tool_usage(

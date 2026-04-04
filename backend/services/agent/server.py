@@ -27,6 +27,15 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
             )
             for source in source_items
         ]
+        retrieved_chunks = final_state.get("retrieved_chunks", [])
+        for chunk in retrieved_chunks:
+            sources.append(
+                chatbot_pb2.Source(
+                    title=chunk.get("file_name", "Retrieved Chunk"),
+                    theme="__retrieved_chunk__",
+                    content=chunk.get("content", ""),
+                )
+            )
         selected_tools = final_state.get("selected_tools", [])
         if selected_tools:
             sources.append(

@@ -58,7 +58,7 @@ def run_evaluation(
             if not prompt:
                 continue
 
-            answer, retrieved_sources, selected_tools = call_chat_endpoint(
+            answer, retrieved_sources, raw_retrieved_chunks, selected_tools = call_chat_endpoint(
                 chat_endpoint=chat_endpoint,
                 question=prompt,
                 testcase_id=str(row["testcase_id"]),
@@ -68,7 +68,7 @@ def run_evaluation(
                 retrieved_sources=retrieved_sources,
                 selected_tools=selected_tools,
             )
-            retrieved_context = build_retrieved_context(retrieved_sources)
+            retrieved_context = build_retrieved_context(raw_retrieved_chunks)
             precision, recall, f1_score = compute_overlap_metrics(
                 retrieved_context,
                 row["Evidence"],
