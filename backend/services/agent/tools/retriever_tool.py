@@ -1,3 +1,5 @@
+import uuid
+
 import retriever_pb2
 from langchain_core.tools import tool
 from state import AgentState
@@ -13,19 +15,22 @@ def _execute_search(query: str, theme_enum, theme_name: str) -> tuple[str, list]
         raw_chunks = []
         context = ""
 
-        # Enumerate starting at 1 to match the LLM's [1], [2] formatting
         for i, res in enumerate(response.results, start=1):
-            # Safely grab the page from the updated protobuf
             page_info = getattr(res, "page", "Unknown")
 
-            # 1. Format the string that the LLM will read
-            context += f"\n--- Chunk [{i}] ---\n"
+            # 1. Create a unique ID e.g., Remedy-1-a4f2
+            unique_suffix = str(uuid.uuid4())[:4]
+            chunk_id = f"{theme_name}-{i}-{unique_suffix}"
+
+            # 2. Format the string with the new ID
+            context += f"\n--- Chunk [{chunk_id}] ---\n"
             context += f"Source: {res.file_name} (Page: {page_info})\n"
             context += f"Content: {res.content}\n"
 
-            # 2. Save the raw metadata for the backend to use later
+            # 3. Save the chunk_id into the raw metadata
             raw_chunks.append(
                 {
+                    "chunk_id": chunk_id,  # Added this key
                     "file_name": res.file_name,
                     "page": page_info,
                     "content": res.content,
@@ -36,7 +41,6 @@ def _execute_search(query: str, theme_enum, theme_name: str) -> tuple[str, list]
         if not raw_chunks:
             return "No relevant documents found.", []
 
-        # Return a tuple: (Text for LLM, Artifact for Backend)
         return context, raw_chunks
 
     except Exception as e:

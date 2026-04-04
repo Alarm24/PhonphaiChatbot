@@ -1,0 +1,19 @@
+# Git and Cache
+.git
+.gitignore
+**/.ruff_cache
+**/__pycache__
+.claude
+
+# Environment and Secrets
+.env
+.env.example
+
+# Project specific ignores
+evaluation/outputs/
+data/
+
+# Build artifacts
+*.pyc
+*.pyo
+*.pyd

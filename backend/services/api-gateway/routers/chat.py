@@ -24,6 +24,7 @@ class ChatResponse(BaseModel):
     session_id: str
     response: str
     sources: List[SourceModel]
+    cost: float = 0.0
 
 
 # --- Endpoints ---
@@ -50,6 +51,7 @@ async def chat_with_agent(request: ChatRequest):
             session_id=grpc_response.session_id,
             response=grpc_response.ai_message,
             sources=sources,
+            cost=grpc_response.cost,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e

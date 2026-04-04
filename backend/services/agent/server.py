@@ -27,8 +27,31 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
             )
             for source in source_items
         ]
+        retrieved_chunks = final_state.get("retrieved_chunks", [])
+        for chunk in retrieved_chunks:
+            sources.append(
+                chatbot_pb2.Source(
+                    title=chunk.get("file_name", "Retrieved Chunk"),
+                    theme="__retrieved_chunk__",
+                    content=chunk.get("content", ""),
+                )
+            )
+        selected_tools = final_state.get("selected_tools", [])
+        if selected_tools:
+            sources.append(
+                chatbot_pb2.Source(
+                    title="__selected_tools__",
+                    theme="__meta__",
+                    content="|".join(selected_tools),
+                )
+            )
+
+        cost = float(final_state.get("cost") or 0.0)
 
         # 4. Return correct fields based on your chatbot.proto
         return chatbot_pb2.ChatResponse(
-            session_id=request.session_id, ai_message=ai_text, sources=sources
+            session_id=request.session_id,
+            ai_message=ai_text,
+            sources=sources,
+            cost=cost,
         )
