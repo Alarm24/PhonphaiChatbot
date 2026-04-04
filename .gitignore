@@ -25,6 +25,7 @@ chroma_data/
 mongo_data/
 db_data/
 *.sqlite3
+backend/evaluation/outputs/
 
 # Build & Package Artifacts
 build/
