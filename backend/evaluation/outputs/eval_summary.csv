@@ -1,5 +1,0 @@
-﻿theme,question_type,testcase_count,tool_called_correctly_mean,precision_mean,recall_mean,f1_score_mean,correctness_mean,helpfulness_mean,irrelevancy_mean,extraneousness_mean,conciseness_mean
-manual,human_question,3,1.0,0.013141,0.233169,0.02488,0.333333,0.666667,0.333333,0.666667,0.0
-manual,llm_question,3,1.0,0.016576,0.333333,0.031581,0.666667,0.666667,0.666667,0.666667,0.333333
-overall,human_question,3,1.0,0.013141,0.233169,0.02488,0.333333,0.666667,0.333333,0.666667,0.0
-overall,llm_question,3,1.0,0.016576,0.333333,0.031581,0.666667,0.666667,0.666667,0.666667,0.333333
