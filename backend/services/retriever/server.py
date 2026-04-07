@@ -7,7 +7,6 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from logger import log
 from themes.disaster import DisasterTheme
 from themes.manual import ManualTheme
-from themes.remedy import RemedyTheme
 from utils.openrouter_parser import process_and_chunk_pdf_with_openrouter
 
 
@@ -15,7 +14,6 @@ class RetrieverServicer(retriever_pb2_grpc.RetrieverServiceServicer):
     def __init__(self):
         self.mongo = MongoDB()
         self.themes = {
-            retriever_pb2.REMEDY: RemedyTheme(),
             retriever_pb2.DISASTER: DisasterTheme(),
             retriever_pb2.MANUAL: ManualTheme(),
         }
