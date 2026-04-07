@@ -47,11 +47,40 @@ def _execute_search(query: str, theme_enum, theme_name: str) -> tuple[str, list]
         return f"Error connecting to Knowledge Base: {str(e)}", []
 
 
+def _execute_ticket_lookup(ticket_code: str) -> tuple[str, list]:
+    """Look up structured Remedy ticket data without passing rows back into the LLM."""
+    normalized_code = ticket_code.strip().upper()
+    if not normalized_code:
+        return "Ticket lookup skipped because no ticket code was provided.", []
+
+    try:
+        ticket_store = AgentState.ticket_store
+        rows = ticket_store.find_ticket_by_code(normalized_code)
+        artifact = [
+            {
+                "source_type": "ticket_lookup",
+                "ticket_code": normalized_code,
+                "rows": rows,
+            }
+        ]
+
+        if not rows:
+            return f"No structured Remedy ticket records were found for {normalized_code}.", artifact
+
+        return (
+            f"Structured Remedy ticket lookup completed for {normalized_code}. "
+            "Raw database rows were withheld from the model and attached as an artifact.",
+            artifact,
+        )
+    except Exception as e:
+        return f"Error looking up Remedy ticket data: {str(e)}", []
+
+
 # --- The 3 Tools ---
 @tool(response_format="content_and_artifact")
-def search_remedy_tickets(query: str) -> tuple[str, list]:
-    """Use this to find solutions for IT tickets, error logs, or specific remedy IDs."""
-    return _execute_search(query, retriever_pb2.REMEDY, "Remedy")
+def search_remedy_tickets(ticket_code: str) -> tuple[str, list]:
+    """Use this ONLY for exact Remedy ticket codes such as SKN-2567-0006."""
+    return _execute_ticket_lookup(ticket_code)
 
 
 @tool(response_format="content_and_artifact")

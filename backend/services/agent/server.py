@@ -1,8 +1,30 @@
+import json
+
 import chatbot_pb2
 import chatbot_pb2_grpc
 from core.graph import app as langgraph_app
 from langchain_core.messages import HumanMessage
 from logger import log
+
+
+def _format_ticket_lookup_message(ticket_lookups: list[dict]) -> str:
+    blocks = []
+
+    for lookup in ticket_lookups:
+        ticket_code = lookup.get("ticket_code", "Unknown")
+        rows = lookup.get("rows", [])
+        if not rows:
+            blocks.append(f"ไม่พบข้อมูลคำร้องหมายเลข {ticket_code}")
+            continue
+
+        first_row = rows[0]
+        status = first_row.get("status") or "-"
+        process_level = first_row.get("process_level") or "-"
+        blocks.append(
+            f"คำร้องหมายเลข {ticket_code} มีสถานะ {status} และมีการดำเนินการระดับ {process_level}"
+        )
+
+    return "\n\n".join(blocks)
 
 
 class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
@@ -36,6 +58,17 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
                     content=chunk.get("content", ""),
                 )
             )
+        ticket_lookups = final_state.get("ticket_lookup_results", [])
+        if ticket_lookups:
+            ai_text = _format_ticket_lookup_message(ticket_lookups)
+            for lookup in ticket_lookups:
+                sources.append(
+                    chatbot_pb2.Source(
+                        title=lookup.get("ticket_code", "Ticket Lookup"),
+                        theme="ticket_lookup",
+                        content=json.dumps(lookup.get("rows", []), ensure_ascii=False),
+                    )
+                )
         selected_tools = final_state.get("selected_tools", [])
         if selected_tools:
             sources.append(

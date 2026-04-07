@@ -1,5 +1,25 @@
 services:
   # --- Databases ---
+  postgres:
+    build:
+      context: .
+      dockerfile: ./services/sql_data/Dockerfile
+    environment:
+      - POSTGRES_DB=phonphai
+      - POSTGRES_USER=phonphai
+      - POSTGRES_PASSWORD=phonphai
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phonphai -d phonphai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rag_net
+
   mongo:
     image: mongo:latest
     volumes:
@@ -66,6 +86,11 @@ services:
       dockerfile: ./services/agent/Dockerfile
     environment:
       - RETRIEVER_HOST=retriever:50051
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=phonphai
+      - POSTGRES_USER=phonphai
+      - POSTGRES_PASSWORD=phonphai
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - ANONYMIZED_TELEMETRY=False
       - LANGCHAIN_TRACING_V2=true
@@ -80,6 +105,8 @@ services:
       retries: 5
     depends_on:
       retriever:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     networks:
       - rag_net

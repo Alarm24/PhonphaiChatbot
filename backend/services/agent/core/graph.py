@@ -28,6 +28,7 @@ class CitedResponse(BaseModel):
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
     retrieved_chunks: list
+    ticket_lookup_results: list
     final_sources: list
     selected_tools: Annotated[list[str], add]
     cost: float
@@ -156,14 +157,20 @@ def format_final_answer(state: AgentState):
 
     # 2. Aggregate chunks from ALL tools in the most recent turn
     retrieved_chunks_dict = {}
+    ticket_lookup_results = []
     for msg in reversed(state["messages"]):
         if msg.type == "human":
             break
 
         if isinstance(msg, ToolMessage) and getattr(msg, "artifact", None):
-            # Map them by chunk_id for easy lookup
-            for chunk in msg.artifact:
-                retrieved_chunks_dict[chunk["chunk_id"]] = chunk
+            for artifact_item in msg.artifact:
+                if artifact_item.get("source_type") == "ticket_lookup":
+                    ticket_lookup_results.append(artifact_item)
+                    continue
+
+                chunk_id = artifact_item.get("chunk_id")
+                if chunk_id:
+                    retrieved_chunks_dict[chunk_id] = artifact_item
 
     # 3. Compile metadata
     final_sources_metadata = [
@@ -184,6 +191,7 @@ def format_final_answer(state: AgentState):
     return {
         "messages": [AIMessage(content=answer, id=last_message.id)],
         "retrieved_chunks": list(retrieved_chunks_dict.values()),
+        "ticket_lookup_results": list(reversed(ticket_lookup_results)),
         "final_sources": final_sources_metadata,
         "cost": total_cost,
     }
