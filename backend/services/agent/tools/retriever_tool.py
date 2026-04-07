@@ -65,7 +65,10 @@ def _execute_ticket_lookup(ticket_code: str) -> tuple[str, list]:
         ]
 
         if not rows:
-            return f"No structured Remedy ticket records were found for {normalized_code}.", artifact
+            return (
+                f"No structured Remedy ticket records were found for {normalized_code}.",
+                artifact,
+            )
 
         return (
             f"Structured Remedy ticket lookup completed for {normalized_code}. "

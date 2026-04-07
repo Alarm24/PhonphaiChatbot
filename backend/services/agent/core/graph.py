@@ -3,7 +3,8 @@ from operator import add
 from typing import Annotated, TypedDict
 
 from config import get_settings
-from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
+from core.bad_word import censor_bad_words
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
@@ -14,7 +15,9 @@ from pydantic import BaseModel, Field
 from tools.retriever_tool import TOOLS_LIST
 
 
-# --- Output Schema ---
+# ==========================================
+# --- OUTPUT SCHEMA ---
+# ==========================================
 class CitedResponse(BaseModel):
     """ALWAYS use this tool to provide the final answer to the user."""
 
@@ -24,7 +27,9 @@ class CitedResponse(BaseModel):
     )
 
 
-# --- State ---
+# ==========================================
+# --- STATE ---
+# ==========================================
 class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
     retrieved_chunks: list
@@ -115,7 +120,26 @@ def extract_usage_metadata(message: AIMessage | ToolMessage | SystemMessage | ob
 def agent_node(state: AgentState):
     """The Brain Node: Decides what to do next."""
 
-    messages = [SystemMessage(content=SYSTEM_PROMPT)] + state["messages"]
+    current_messages = list(state["messages"])
+
+    # ----------------------------------------
+    # 🛡️ INPUT GUARDRAIL: Censor
+    # ----------------------------------------
+    updated_human_msg = None
+    last_human_msg = next((m for m in reversed(current_messages) if m.type == "human"), None)
+
+    if last_human_msg:
+        censored_content = censor_bad_words(last_human_msg.content)
+
+        if censored_content != last_human_msg.content:
+            # Create a new message with the censored text but KEEP THE SAME ID
+            updated_human_msg = HumanMessage(content=censored_content, id=last_human_msg.id)
+            # Replace the old message so the LLM gets the clean version
+            for i, msg in enumerate(current_messages):
+                if msg.id == last_human_msg.id:
+                    current_messages[i] = updated_human_msg
+
+    messages = [SystemMessage(content=SYSTEM_PROMPT)] + current_messages
 
     response = model_with_tools.invoke(messages)
     response_cost = extract_cost(response)
@@ -154,6 +178,9 @@ def format_final_answer(state: AgentState):
         answer = cited_calls[0]["args"].get("answer", "")
     else:
         answer = last_message.content
+
+    # OUTPUT GUARDRAIL
+    answer = censor_bad_words(answer)
 
     # 2. Aggregate chunks from ALL tools in the most recent turn
     retrieved_chunks_dict = {}
@@ -214,7 +241,7 @@ workflow = StateGraph(AgentState)
 
 workflow.add_node("agent", agent_node)
 workflow.add_node("tools", tool_node)
-workflow.add_node("format_answer", format_final_answer)  # Add new node
+workflow.add_node("format_answer", format_final_answer)
 
 workflow.set_entry_point("agent")
 
