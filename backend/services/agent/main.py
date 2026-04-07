@@ -4,6 +4,7 @@ import chatbot_pb2_grpc
 import grpc
 import retriever_pb2_grpc
 from config import get_settings
+from db.postgres import PostgresTicketStore
 from logger import log
 from server import AgentServicer
 from state import AgentState
@@ -16,6 +17,19 @@ def serve():
     retriever_channel = grpc.insecure_channel(settings.RETRIEVER_HOST)
     AgentState.retriever_client = retriever_pb2_grpc.RetrieverServiceStub(retriever_channel)
     log.info(f"[{settings.APP_NAME}] Connected to Retriever at {settings.RETRIEVER_HOST}")
+
+    AgentState.ticket_store = PostgresTicketStore(
+        host=settings.POSTGRES_HOST,
+        port=settings.POSTGRES_PORT,
+        database=settings.POSTGRES_DB,
+        user=settings.POSTGRES_USER,
+        password=settings.POSTGRES_PASSWORD,
+    )
+    AgentState.ticket_store.ping()
+    log.info(
+        f"[{settings.APP_NAME}] Connected to Postgres at "
+        f"{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
+    )
 
     # 2. Start the Agent's own gRPC Server
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))

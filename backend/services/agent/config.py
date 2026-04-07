@@ -9,6 +9,11 @@ class Settings(BaseSettings):
 
     # Upstream Services
     RETRIEVER_HOST: str = "retriever:50051"
+    POSTGRES_HOST: str = "postgres"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_DB: str = "phonphai"
+    POSTGRES_USER: str = "phonphai"
+    POSTGRES_PASSWORD: str = "phonphai"
 
     # LangSmith Tracing Configuration
     LANGCHAIN_TRACING_V2: str = "true"
