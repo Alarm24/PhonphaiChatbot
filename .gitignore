@@ -23,7 +23,8 @@ ENV/
 # Databases & Local Volumes
 chroma_data/
 mongo_data/
-db_data/
+postgres_data/
+evaluation/
 *.sqlite3
 
 # Build & Package Artifacts
