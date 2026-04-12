@@ -24,7 +24,7 @@ ENV/
 chroma_data/
 mongo_data/
 postgres_data/
-db_data/
+evaluation/
 *.sqlite3
 backend/evaluation/outputs/
 
