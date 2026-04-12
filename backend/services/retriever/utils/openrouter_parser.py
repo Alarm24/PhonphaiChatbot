@@ -1,19 +1,53 @@
 import base64
 import json
+import os
 
 import requests
 from config import get_settings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langsmith import get_current_run_tree, traceable  # <-- Added imports
 from logger import log
 from utils.prompt import PHARSER_PROMPT
 
 
+# --- 1. Create a traced helper function for the raw API call ---
+@traceable(
+    run_type="llm",
+    metadata={"ls_provider": "openrouter", "ls_model_name": "google/gemini-2.5-flash"},
+)
+def call_openrouter_api(payload: dict, headers: dict) -> dict:
+    """Handles the API call and tells LangSmith how many tokens were used."""
+    response = requests.post(
+        "https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers
+    )
+
+    if response.status_code != 200:
+        raise Exception(f"OpenRouter Error: {response.text}")
+
+    response_data = response.json()
+
+    # Grab the tokens from the OpenRouter response and give them to LangSmith
+    run = get_current_run_tree()
+    if run and "usage" in response_data:
+        usage = response_data["usage"]
+        run.add_outputs({"usage": usage})
+
+    return response_data
+
+
+# --- 2. Update your main function ---
 def process_and_chunk_pdf_with_openrouter(file_bytes: bytes, filename: str) -> list:
     settings = get_settings()
     api_key = settings.OPENROUTER_API_KEY
 
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY is not configured in environment.")
+
+    # --- LangSmith Configuration ---
+    os.environ["LANGCHAIN_TRACING_V2"] = settings.LANGCHAIN_TRACING_V2
+    os.environ["LANGCHAIN_ENDPOINT"] = settings.LANGCHAIN_ENDPOINT
+    os.environ["LANGCHAIN_API_KEY"] = settings.LANGCHAIN_API_KEY
+    os.environ["LANGCHAIN_PROJECT"] = settings.LANGCHAIN_PROJECT
 
     log.info(f"🚀 Preparing {filename} for OpenRouter API...")
     base64_pdf = base64.b64encode(file_bytes).decode("utf-8")
@@ -46,7 +80,6 @@ def process_and_chunk_pdf_with_openrouter(file_bytes: bytes, filename: str) -> l
         },
     }
 
-    # Use the prompt you defined, or fallback to this inline one
     prompt = PHARSER_PROMPT
 
     payload = {
@@ -72,14 +105,9 @@ def process_and_chunk_pdf_with_openrouter(file_bytes: bytes, filename: str) -> l
     }
 
     log.info(f"🧠 Parsing {filename} with OpenRouter...")
-    response = requests.post(
-        "https://openrouter.ai/api/v1/chat/completions", json=payload, headers=headers
-    )
 
-    if response.status_code != 200:
-        raise Exception(f"OpenRouter Error: {response.text}")
-
-    response_data = response.json()
+    # --- Use the new helper function here! ---
+    response_data = call_openrouter_api(payload, headers)
 
     try:
         # --- 1. Extract Pages ---
@@ -102,7 +130,7 @@ def process_and_chunk_pdf_with_openrouter(file_bytes: bytes, filename: str) -> l
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=settings.CHUNK_SIZE,
             chunk_overlap=settings.CHUNK_OVERLAP,
-            add_start_index=True,  # Critical: Tracks where the chunk started
+            add_start_index=True,
         )
         docs = text_splitter.create_documents([combined_text])
 
@@ -115,7 +143,6 @@ def process_and_chunk_pdf_with_openrouter(file_bytes: bytes, filename: str) -> l
             start_page = None
             end_page = None
 
-            # Check which pages this specific chunk overlaps with
             for p_num, p_start, p_end in page_boundaries:
                 if not (end_index < p_start or start_index > p_end):
                     if start_page is None:
@@ -130,7 +157,7 @@ def process_and_chunk_pdf_with_openrouter(file_bytes: bytes, filename: str) -> l
                     "content": doc.page_content,
                     "metadata": {
                         "source": filename,
-                        "page": f"[{start_page},{end_page}]",  # e.g. [1,2] or [3,3]
+                        "page": f"[{start_page},{end_page}]",
                     },
                 }
             )

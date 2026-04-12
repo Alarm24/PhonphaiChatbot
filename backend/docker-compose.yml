@@ -1,5 +1,25 @@
 services:
   # --- Databases ---
+  postgres:
+    build:
+      context: .
+      dockerfile: ./services/sql_data/Dockerfile
+    environment:
+      - POSTGRES_DB=phonphai
+      - POSTGRES_USER=phonphai
+      - POSTGRES_PASSWORD=phonphai
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./data/postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U phonphai -d phonphai"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rag_net
+
   mongo:
     image: mongo:latest
     volumes:
@@ -27,6 +47,13 @@ services:
       args:
         EMBEDDING_MODEL_NAME: intfloat/multilingual-e5-large
         RERANK_MODEL_NAME: BAAI/bge-reranker-v2-m3
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     environment:
       - MONGO_URI=mongodb://mongo:27017
       - CHROMA_HOST=chroma
@@ -40,13 +67,16 @@ services:
       - CHUNK_SIZE=1000
       - CHUNK_OVERLAP=200
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - LANGCHAIN_TRACING_V2=true
+      - LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
+      - LANGCHAIN_PROJECT=phonphai-phaser
     restart: unless-stopped     
     healthcheck:              
       test: ["CMD", "python", "-c", "import socket; socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(('localhost', 50051))"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 120s
     networks:
       - rag_net
 
@@ -56,8 +86,17 @@ services:
       dockerfile: ./services/agent/Dockerfile
     environment:
       - RETRIEVER_HOST=retriever:50051
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=phonphai
+      - POSTGRES_USER=phonphai
+      - POSTGRES_PASSWORD=phonphai
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - ANONYMIZED_TELEMETRY=False
+      - LANGCHAIN_TRACING_V2=true
+      - LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
+      - LANGCHAIN_PROJECT=phonphai-agent
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(('localhost', 50052))"]
@@ -66,6 +105,8 @@ services:
       retries: 5
     depends_on:
       retriever:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     networks:
       - rag_net
@@ -79,6 +120,7 @@ services:
     environment:
       - AGENT_HOST=agent:50052
       - RETRIEVER_HOST=retriever:50051
+      - ANONYMIZED_TELEMETRY=False
     restart: unless-stopped      
     depends_on:
       retriever:

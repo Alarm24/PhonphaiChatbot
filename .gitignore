@@ -26,6 +26,7 @@ mongo_data/
 postgres_data/
 evaluation/
 *.sqlite3
+backend/evaluation/outputs/
 
 # Build & Package Artifacts
 build/

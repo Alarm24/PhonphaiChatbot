@@ -22,6 +22,12 @@ class Settings(BaseSettings):
 
     OPENROUTER_API_KEY: str = ""
 
+    # LangSmith Tracing Configuration
+    LANGCHAIN_TRACING_V2: str = "true"
+    LANGCHAIN_ENDPOINT: str = "https://api.smith.langchain.com"
+    LANGCHAIN_API_KEY: str = ""
+    LANGCHAIN_PROJECT: str = "phonphai-phaser"
+
     class Config:
         env_file = ".env"
 

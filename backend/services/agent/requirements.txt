@@ -4,7 +4,9 @@ protobuf>=4.25.3
 langchain>=0.2.0
 langchain-openai
 langgraph>=0.2.0
+langsmith>=0.1.0
 pydantic>=2.6.0
 python-dotenv==1.0.1
 pydantic-settings>=2.2.0
 loguru>=0.7.2
+psycopg[binary]>=3.2.1

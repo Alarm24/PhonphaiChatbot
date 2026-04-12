@@ -7,14 +7,21 @@ from sentence_transformers import CrossEncoder
 
 
 class BaseTheme:
+    _shared_reranker = None
+
     def __init__(self, theme_name):
         self.theme_name = theme_name
         self.chroma = ChromaDB()
         self.settings = get_settings()
 
-        # 1. Initialize Cross-Encoder Reranker
-        log.info(f"Loading Reranker Model: {self.settings.RERANK_MODEL_NAME}")
-        self.reranker = CrossEncoder(self.settings.RERANK_MODEL_NAME)
+        # Load the reranker once and share it across all theme instances.
+        if BaseTheme._shared_reranker is None:
+            log.info(f"Loading Reranker Model: {self.settings.RERANK_MODEL_NAME}")
+            BaseTheme._shared_reranker = CrossEncoder(
+                self.settings.RERANK_MODEL_NAME,
+                device="cuda",
+            )
+        self.reranker = BaseTheme._shared_reranker
 
         # 2. Initialize variables for local BM25 indexing
         self.corpus_docs = []

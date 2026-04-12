@@ -15,6 +15,7 @@ message ChatResponse {
   string session_id = 1;
   string ai_message = 2;
   repeated Source sources = 3;
+  double cost = 4;
 }
 
 message Source {
