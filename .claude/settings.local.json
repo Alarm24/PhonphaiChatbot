@@ -13,7 +13,9 @@
       "Bash(python3 -m grpc_tools.protoc --version)",
       "Bash(pip3 install:*)",
       "Bash(python3 -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. chatbot.proto)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(find /Users/alarmirl/Documents/GitHub/PhonphaiChatbot/Frontend/web/src -type f \\\\\\( -name \"*.tsx\" -o -name \"*.ts\" \\\\\\) -exec wc -l {} \\\\;)",
+      "Bash(grep:*)"
     ]
   }
 }
