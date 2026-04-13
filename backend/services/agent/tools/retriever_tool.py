@@ -1,6 +1,7 @@
 import uuid
 
 import retriever_pb2
+from context import current_user_id
 from langchain_core.tools import tool
 from state import AgentState
 
@@ -49,6 +50,13 @@ def _execute_search(query: str, theme_enum, theme_name: str) -> tuple[str, list]
 
 def _execute_ticket_lookup(ticket_code: str) -> tuple[str, list]:
     """Look up structured Remedy ticket data without passing rows back into the LLM."""
+    user_id = current_user_id.get("")
+    if not user_id:
+        return (
+            "ผู้ใช้ยังไม่ได้เข้าสู่ระบบ กรุณาเข้าสู่ระบบก่อนเพื่อค้นหาข้อมูลคำร้อง",
+            [],
+        )
+
     normalized_code = ticket_code.strip().upper()
     if not normalized_code:
         return "Ticket lookup skipped because no ticket code was provided.", []

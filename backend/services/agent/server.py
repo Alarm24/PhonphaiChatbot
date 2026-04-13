@@ -2,6 +2,7 @@ import json
 
 import chatbot_pb2
 import chatbot_pb2_grpc
+from context import current_user_id
 from core.graph import app as langgraph_app
 from langchain_core.messages import HumanMessage
 from logger import log
@@ -78,6 +79,7 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
     def Chat(self, request, context):
         log.info(f"🧠 Processing query: {request.user_message} (Session: {request.session_id})")
 
+        current_user_id.set(request.user_id)
         initial_state = {"messages": [HumanMessage(content=request.user_message)]}
         final_state = langgraph_app.invoke(initial_state)
 
@@ -102,6 +104,7 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
             f"🧠 [Stream] Processing query: {request.user_message} (Session: {request.session_id})"
         )
 
+        current_user_id.set(request.user_id)
         initial_state = {"messages": [HumanMessage(content=request.user_message)]}
 
         try:

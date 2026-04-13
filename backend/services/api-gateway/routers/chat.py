@@ -14,6 +14,7 @@ router = APIRouter()
 class ChatRequest(BaseModel):
     session_id: str
     message: str
+    user_id: str = ""
 
 
 class SourceModel(BaseModel):
@@ -36,7 +37,9 @@ async def chat_with_agent(request: ChatRequest):
         client = gRPCState.agent_client
 
         grpc_request = chatbot_pb2.ChatRequest(
-            session_id=request.session_id, user_message=request.message
+            session_id=request.session_id,
+            user_message=request.message,
+            user_id=request.user_id,
         )
 
         grpc_response = await client.Chat(grpc_request)
@@ -60,7 +63,9 @@ async def chat_with_agent(request: ChatRequest):
 async def chat_stream(request: ChatRequest):
     client = gRPCState.agent_client
     grpc_request = chatbot_pb2.ChatRequest(
-        session_id=request.session_id, user_message=request.message
+        session_id=request.session_id,
+        user_message=request.message,
+        user_id=request.user_id,
     )
 
     async def event_generator():

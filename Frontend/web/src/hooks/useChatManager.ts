@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid'
 import type { Message } from '../types'
 import { sendMessage as apiSendMessage, sendMessageStream } from '../services/api'
 import { useLanguage } from '../contexts/LanguageContext'
+import { useAuth } from '../contexts/AuthContext'
 
 const STORAGE_KEY_SESSION = 'phonphai_session_id'
 const STORAGE_KEY_MESSAGES = 'phonphai_messages'
@@ -43,6 +44,7 @@ function getOrCreateSessionId(): string {
 
 export function useChatManager(greetingText: string) {
   const { t } = useLanguage()
+  const { user } = useAuth()
   const sessionIdRef = useRef<string>(getOrCreateSessionId())
 
   const [messages, setMessages] = useState<Message[]>(() => {
@@ -137,7 +139,7 @@ export function useChatManager(greetingText: string) {
           sessionIdRef.current,
           text.trim(),
           // onToken
-          (token) => {
+          (token: string) => {
             if (firstToken) {
               // Replace thinking bubble with streaming message
               firstToken = false
@@ -185,6 +187,7 @@ export function useChatManager(greetingText: string) {
               ),
             )
           },
+          user ?? '',
         )
       }
     } catch {
@@ -200,7 +203,7 @@ export function useChatManager(greetingText: string) {
     } finally {
       setIsThinking(false)
     }
-  }, [isThinking])
+  }, [isThinking, user])
 
   const clearChat = useCallback((newGreetingText: string) => {
     const newId = uuidv4()

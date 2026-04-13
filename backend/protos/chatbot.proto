@@ -10,6 +10,7 @@ service AgentService {
 message ChatRequest {
   string session_id = 1;
   string user_message = 2;
+  string user_id = 3;
 }
 
 message ChatResponse {
