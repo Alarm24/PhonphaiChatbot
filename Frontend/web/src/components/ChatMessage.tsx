@@ -28,7 +28,12 @@ export function ChatMessage({ message }: ChatMessageProps) {
               : 'bg-[#D32F2F] text-white'
           }`}
         >
-          <p className="break-words">{message.text}</p>
+          <p className="break-words">
+            {message.text}
+            {message.isStreaming && (
+              <span className="inline-block w-[2px] h-[1em] ml-0.5 bg-gray-900 animate-pulse align-text-bottom" />
+            )}
+          </p>
         </div>
         <span className="text-xs text-gray-500 mt-1">
           {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

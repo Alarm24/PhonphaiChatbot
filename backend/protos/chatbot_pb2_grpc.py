@@ -5,7 +5,7 @@ import warnings
 
 import chatbot_pb2 as chatbot__pb2
 
-GRPC_GENERATED_VERSION = '1.76.0'
+GRPC_GENERATED_VERSION = '1.80.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -39,12 +39,23 @@ class AgentServiceStub(object):
                 request_serializer=chatbot__pb2.ChatRequest.SerializeToString,
                 response_deserializer=chatbot__pb2.ChatResponse.FromString,
                 _registered_method=True)
+        self.ChatStream = channel.unary_stream(
+                '/agent.AgentService/ChatStream',
+                request_serializer=chatbot__pb2.ChatRequest.SerializeToString,
+                response_deserializer=chatbot__pb2.ChatStreamChunk.FromString,
+                _registered_method=True)
 
 
 class AgentServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def Chat(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def ChatStream(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -57,6 +68,11 @@ def add_AgentServiceServicer_to_server(servicer, server):
                     servicer.Chat,
                     request_deserializer=chatbot__pb2.ChatRequest.FromString,
                     response_serializer=chatbot__pb2.ChatResponse.SerializeToString,
+            ),
+            'ChatStream': grpc.unary_stream_rpc_method_handler(
+                    servicer.ChatStream,
+                    request_deserializer=chatbot__pb2.ChatRequest.FromString,
+                    response_serializer=chatbot__pb2.ChatStreamChunk.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -86,6 +102,33 @@ class AgentService(object):
             '/agent.AgentService/Chat',
             chatbot__pb2.ChatRequest.SerializeToString,
             chatbot__pb2.ChatResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ChatStream(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_stream(
+            request,
+            target,
+            '/agent.AgentService/ChatStream',
+            chatbot__pb2.ChatRequest.SerializeToString,
+            chatbot__pb2.ChatStreamChunk.FromString,
             options,
             channel_credentials,
             insecure,
