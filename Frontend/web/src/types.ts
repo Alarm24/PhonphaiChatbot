@@ -4,6 +4,7 @@ export interface Message {
   sender: 'user' | 'bot'
   timestamp: Date
   isThinking?: boolean
+  isStreaming?: boolean
 }
 
 export interface ChatApiResponse {

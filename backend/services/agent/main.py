@@ -1,4 +1,4 @@
-from concurrent import futures
+import asyncio
 
 import chatbot_pb2_grpc
 import grpc
@@ -10,11 +10,11 @@ from server import AgentServicer
 from state import AgentState
 
 
-def serve():
+async def serve():
     settings = get_settings()
 
     # 1. Establish persistent connection to the Retriever
-    retriever_channel = grpc.insecure_channel(settings.RETRIEVER_HOST)
+    retriever_channel = grpc.aio.insecure_channel(settings.RETRIEVER_HOST)
     AgentState.retriever_client = retriever_pb2_grpc.RetrieverServiceStub(retriever_channel)
     log.info(f"[{settings.APP_NAME}] Connected to Retriever at {settings.RETRIEVER_HOST}")
 
@@ -31,17 +31,17 @@ def serve():
         f"{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
     )
 
-    # 2. Start the Agent's own gRPC Server
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    # 2. Start the Agent's own gRPC Server (async)
+    server = grpc.aio.server()
     chatbot_pb2_grpc.add_AgentServiceServicer_to_server(AgentServicer(), server)
 
     listen_addr = f"[::]:{settings.PORT}"
     server.add_insecure_port(listen_addr)
-    server.start()
+    await server.start()
 
     log.info(f"[{settings.APP_NAME}] Server started, listening on {listen_addr}")
-    server.wait_for_termination()
+    await server.wait_for_termination()
 
 
 if __name__ == "__main__":
-    serve()
+    asyncio.run(serve())
