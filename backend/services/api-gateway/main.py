@@ -7,7 +7,7 @@ import uvicorn
 from config import get_settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import chat, files
+from routers import auth, chat, files
 from state import gRPCState
 
 
@@ -42,6 +42,7 @@ app.add_middleware(
 )
 
 # Include your routers
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["Chat"])
 app.include_router(files.router, prefix="/api/v1/files", tags=["Files"])
 

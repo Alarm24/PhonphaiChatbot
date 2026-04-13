@@ -12,6 +12,13 @@ class Settings(BaseSettings):
     RETRIEVER_HOST: str = "retriever:50051"
     AGENT_HOST: str = "agent:50052"
 
+    # PostgreSQL (user auth)
+    POSTGRES_HOST: str = "postgres"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_DB: str = "phonphai"
+    POSTGRES_USER: str = "phonphai"
+    POSTGRES_PASSWORD: str = "phonphai"
+
     class Config:
         env_file = ".env"
 

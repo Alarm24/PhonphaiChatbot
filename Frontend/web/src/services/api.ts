@@ -2,6 +2,40 @@ import type { ChatApiResponse } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
 
+// --- Auth API ---
+
+export async function registerApi(
+  email: string,
+  password: string,
+): Promise<{ message: string; email: string }> {
+  const res = await fetch(`${API_URL}/api/v1/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail ?? 'Registration failed')
+  }
+  return res.json()
+}
+
+export async function loginApi(
+  email: string,
+  password: string,
+): Promise<{ message: string; email: string }> {
+  const res = await fetch(`${API_URL}/api/v1/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}))
+    throw new Error(body.detail ?? 'Login failed')
+  }
+  return res.json()
+}
+
 export async function sendMessage(
   sessionId: string,
   message: string,

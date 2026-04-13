@@ -120,12 +120,19 @@ services:
     environment:
       - AGENT_HOST=agent:50052
       - RETRIEVER_HOST=retriever:50051
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=phonphai
+      - POSTGRES_USER=phonphai
+      - POSTGRES_PASSWORD=phonphai
       - ANONYMIZED_TELEMETRY=False
-    restart: unless-stopped      
+    restart: unless-stopped
     depends_on:
       retriever:
         condition: service_healthy
       agent:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     networks:
       - rag_net
