@@ -2,6 +2,7 @@ import uuid
 
 import retriever_pb2
 from context import current_user_id
+from langchain_core.messages import ToolMessage
 from langchain_core.tools import tool
 from state import AgentState
 
@@ -104,6 +105,29 @@ def search_disaster_protocols(query: str) -> tuple[str, list]:
 def search_user_manuals(query: str) -> tuple[str, list]:
     """Use this to look up 'How-To' guides, installation steps, or standard operating procedures."""
     return _execute_search(query, retriever_pb2.MANUAL, "Manual")
+
+
+def execute_tool_call(tool_call: dict) -> ToolMessage:
+    """Execute a tool call dict and return a ToolMessage for the conversation state."""
+    tool_name = tool_call.get("name", "")
+    tool_args = tool_call.get("args", {}) or {}
+
+    if tool_name == "search_remedy_tickets":
+        content, artifact = _execute_ticket_lookup(tool_args.get("ticket_code", ""))
+    elif tool_name == "search_disaster_protocols":
+        content, artifact = _execute_search(
+            tool_args.get("query", ""), retriever_pb2.DISASTER, "Disaster"
+        )
+    elif tool_name == "search_user_manuals":
+        content, artifact = _execute_search(tool_args.get("query", ""), retriever_pb2.MANUAL, "Manual")
+    else:
+        content, artifact = f"Unknown tool requested: {tool_name}", []
+
+    return ToolMessage(
+        content=content,
+        tool_call_id=tool_call.get("id", ""),
+        artifact=artifact,
+    )
 
 
 # List of tools to bind to the model

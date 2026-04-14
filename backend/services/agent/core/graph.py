@@ -9,10 +9,10 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import END, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
-from langsmith import get_current_run_tree
-from prompts.prompt import SYSTEM_PROMPT
+from langsmith import get_current_run_tree, traceable
+from prompts.prompt import FINAL_STREAM_SYSTEM_PROMPT, SYSTEM_PROMPT
 from pydantic import BaseModel, Field
-from tools.retriever_tool import TOOLS_LIST
+from tools.retriever_tool import TOOLS_LIST, execute_tool_call
 
 
 # ==========================================
@@ -55,6 +55,10 @@ model = ChatOpenAI(
 )
 
 model_with_tools = model.bind_tools(TOOLS_LIST + [CitedResponse]).with_config(
+    {"metadata": {"ls_provider": "openrouter", "ls_model_name": "google/gemini-2.5-flash"}}
+)
+
+streaming_answer_model = model.with_config(
     {"metadata": {"ls_provider": "openrouter", "ls_model_name": "google/gemini-2.5-flash"}}
 )
 
@@ -117,6 +121,26 @@ def extract_usage_metadata(message: AIMessage | ToolMessage | SystemMessage | ob
     return usage_metadata
 
 
+def extract_stream_text(message_chunk: object) -> str:
+    """Best-effort extraction of text content from streamed model chunks."""
+    content = getattr(message_chunk, "content", "")
+
+    if isinstance(content, str):
+        return content
+
+    if isinstance(content, list):
+        parts = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                if item.get("type") == "text":
+                    parts.append(item.get("text", ""))
+        return "".join(parts)
+
+    return ""
+
+
 def agent_node(state: AgentState):
     """The Brain Node: Decides what to do next."""
 
@@ -163,6 +187,95 @@ def agent_node(state: AgentState):
 
 
 tool_node = ToolNode(TOOLS_LIST)
+
+
+def collect_tool_artifacts(messages: list) -> tuple[list, list]:
+    """Collect retrieved chunks and ticket lookup artifacts from tool messages."""
+    retrieved_chunks_dict = {}
+    ticket_lookup_results = []
+
+    for msg in messages:
+        if isinstance(msg, ToolMessage) and getattr(msg, "artifact", None):
+            for artifact_item in msg.artifact:
+                if artifact_item.get("source_type") == "ticket_lookup":
+                    ticket_lookup_results.append(artifact_item)
+                    continue
+
+                chunk_id = artifact_item.get("chunk_id")
+                if chunk_id:
+                    retrieved_chunks_dict[chunk_id] = artifact_item
+
+    return list(retrieved_chunks_dict.values()), ticket_lookup_results
+
+
+def build_retrieved_context(retrieved_chunks: list[dict]) -> str:
+    """Format retrieved chunks into plain text context for the streaming answer model."""
+    if not retrieved_chunks:
+        return ""
+
+    sections = []
+    for chunk in retrieved_chunks:
+        page = chunk.get("page", "Unknown")
+        sections.append(
+            "\n".join(
+                [
+                    f"--- Chunk [{chunk.get('chunk_id', 'Unknown')}] ---",
+                    f"Source: {chunk.get('file_name', 'unknown')} (Page: {page})",
+                    f"Content: {chunk.get('content', '')}",
+                ]
+            )
+        )
+
+    return "\n\n".join(sections)
+
+
+@traceable(name="stream_tool_phase", run_type="chain")
+def run_tool_phase(user_message: str) -> dict:
+    """Execute the tool-calling loop without producing the final natural-language answer."""
+    current_messages = [HumanMessage(content=user_message)]
+    selected_tools: list[str] = []
+    total_cost = 0.0
+
+    while True:
+        messages = [SystemMessage(content=SYSTEM_PROMPT)] + current_messages
+        response = model_with_tools.invoke(messages)
+        total_cost += extract_cost(response)
+        current_messages.append(response)
+
+        tool_calls = getattr(response, "tool_calls", []) or []
+        selected_tools.extend(
+            tool_call["name"] for tool_call in tool_calls if tool_call["name"] != "CitedResponse"
+        )
+
+        non_cited_tool_calls = [
+            tool_call for tool_call in tool_calls if tool_call["name"] != "CitedResponse"
+        ]
+        if not non_cited_tool_calls:
+            break
+
+        tool_messages = [execute_tool_call(tool_call) for tool_call in non_cited_tool_calls]
+        current_messages.extend(tool_messages)
+
+    retrieved_chunks, ticket_lookup_results = collect_tool_artifacts(current_messages)
+
+    final_sources_metadata = [
+        {
+            "title": chunk.get("file_name", "Unknown Document"),
+            "theme": chunk.get("theme", "Unknown Theme"),
+            "content": chunk.get("content", ""),
+        }
+        for chunk in retrieved_chunks
+    ]
+
+    return {
+        "messages": current_messages,
+        "retrieved_chunks": retrieved_chunks,
+        "ticket_lookup_results": ticket_lookup_results,
+        "final_sources": final_sources_metadata,
+        "selected_tools": selected_tools,
+        "cost": round(total_cost, 10),
+        "retrieved_context": build_retrieved_context(retrieved_chunks),
+    }
 
 
 def format_final_answer(state: AgentState):

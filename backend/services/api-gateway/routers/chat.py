@@ -1,3 +1,4 @@
+import asyncio
 import json
 from typing import List
 
@@ -76,6 +77,7 @@ async def chat_stream(request: ChatRequest):
                 if payload_type == "token":
                     data = json.dumps({"type": "token", "content": chunk.token})
                     yield f"data: {data}\n\n"
+                    await asyncio.sleep(0)
 
                 elif payload_type == "final_response":
                     resp = chunk.final_response

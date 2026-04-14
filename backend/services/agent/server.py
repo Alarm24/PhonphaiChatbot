@@ -1,10 +1,18 @@
+import asyncio
 import json
 
 import chatbot_pb2
 import chatbot_pb2_grpc
 from context import current_user_id
-from core.graph import app as langgraph_app
-from langchain_core.messages import HumanMessage
+from core.graph import (
+    FINAL_STREAM_SYSTEM_PROMPT,
+    app as langgraph_app,
+    extract_cost,
+    extract_stream_text,
+    run_tool_phase,
+    streaming_answer_model,
+)
+from langchain_core.messages import HumanMessage, SystemMessage
 from logger import log
 
 
@@ -15,14 +23,14 @@ def _format_ticket_lookup_message(ticket_lookups: list[dict]) -> str:
         ticket_code = lookup.get("ticket_code", "Unknown")
         rows = lookup.get("rows", [])
         if not rows:
-            blocks.append(f"ไม่พบข้อมูลคำร้องหมายเลข {ticket_code}")
+            blocks.append(f"à¹„à¸¡à¹ˆà¸žà¸šà¸‚à¹‰à¸­à¸¡à¸¹à¸¥à¸„à¸³à¸£à¹‰à¸­à¸‡à¸«à¸¡à¸²à¸¢à¹€à¸¥à¸‚ {ticket_code}")
             continue
 
         first_row = rows[0]
         status = first_row.get("status") or "-"
         process_level = first_row.get("process_level") or "-"
         blocks.append(
-            f"คำร้องหมายเลข {ticket_code} มีสถานะ {status} และมีการดำเนินการระดับ {process_level}"
+            f"à¸„à¸³à¸£à¹‰à¸­à¸‡à¸«à¸¡à¸²à¸¢à¹€à¸¥à¸‚ {ticket_code} à¸¡à¸µà¸ªà¸–à¸²à¸™à¸° {status} à¹à¸¥à¸°à¸¡à¸µà¸à¸²à¸£à¸”à¸³à¹€à¸™à¸´à¸™à¸à¸²à¸£à¸£à¸°à¸”à¸±à¸š {process_level}"
         )
 
     return "\n\n".join(blocks)
@@ -77,7 +85,7 @@ def _build_sources(final_state: dict) -> tuple[list, str | None]:
 
 class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
     def Chat(self, request, context):
-        log.info(f"🧠 Processing query: {request.user_message} (Session: {request.session_id})")
+        log.info(f"ðŸ§  Processing query: {request.user_message} (Session: {request.session_id})")
 
         current_user_id.set(request.user_id)
         initial_state = {"messages": [HumanMessage(content=request.user_message)]}
@@ -101,49 +109,61 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
 
     async def ChatStream(self, request, context):
         log.info(
-            f"🧠 [Stream] Processing query: {request.user_message} (Session: {request.session_id})"
+            f"ðŸ§  [Stream] Processing query: {request.user_message} (Session: {request.session_id})"
         )
 
         current_user_id.set(request.user_id)
-        initial_state = {"messages": [HumanMessage(content=request.user_message)]}
 
         try:
-            # Run the graph to completion using astream to get node-level updates
-            final_state = {}
-            async for chunk in langgraph_app.astream(
-                initial_state, stream_mode="updates"
-            ):
-                for node_name, update in chunk.items():
-                    # Merge each node's output into final_state
-                    for key, value in update.items():
-                        final_state[key] = value
+            tool_phase = await asyncio.to_thread(run_tool_phase, request.user_message)
+            sources, ticket_override = _build_sources(tool_phase)
+            total_cost = float(tool_phase.get("cost") or 0.0)
 
-            # Extract the final answer text
-            messages = final_state.get("messages", [])
-            ai_text = messages[-1].content if messages else ""
-
-            sources, ticket_override = _build_sources(final_state)
             if ticket_override:
                 ai_text = ticket_override
+                words = ai_text.split(" ")
+                for i, word in enumerate(words):
+                    token = word if i == 0 else " " + word
+                    yield chatbot_pb2.ChatStreamChunk(
+                        session_id=request.session_id,
+                        token=token,
+                    )
+                    await asyncio.sleep(0)
+            else:
+                context_block = tool_phase.get("retrieved_context", "")
+                stream_messages = [
+                    SystemMessage(content=FINAL_STREAM_SYSTEM_PROMPT),
+                    HumanMessage(
+                        content=(
+                            f"User question:\n{request.user_message}\n\n"
+                            f"Retrieved context:\n{context_block or 'No retrieved context provided.'}"
+                        )
+                    ),
+                ]
 
-            # Stream the answer text word-by-word for typewriter effect
-            words = ai_text.split(" ")
-            for i, word in enumerate(words):
-                token = word if i == 0 else " " + word
-                yield chatbot_pb2.ChatStreamChunk(
-                    session_id=request.session_id,
-                    token=token,
-                )
+                streamed_parts = []
+                async for chunk in streaming_answer_model.astream(stream_messages):
+                    total_cost += extract_cost(chunk)
+                    token = extract_stream_text(chunk)
+                    if not token:
+                        continue
 
-            # Send final response with sources and cost
-            cost = float(final_state.get("cost") or 0.0)
+                    streamed_parts.append(token)
+                    yield chatbot_pb2.ChatStreamChunk(
+                        session_id=request.session_id,
+                        token=token,
+                    )
+                    await asyncio.sleep(0)
+
+                ai_text = "".join(streamed_parts)
+
             yield chatbot_pb2.ChatStreamChunk(
                 session_id=request.session_id,
                 final_response=chatbot_pb2.ChatResponse(
                     session_id=request.session_id,
                     ai_message=ai_text,
                     sources=sources,
-                    cost=cost,
+                    cost=total_cost,
                 ),
             )
         except Exception as e:

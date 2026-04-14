@@ -13,8 +13,9 @@ from state import AgentState
 async def serve():
     settings = get_settings()
 
-    # 1. Establish persistent connection to the Retriever
-    retriever_channel = grpc.aio.insecure_channel(settings.RETRIEVER_HOST)
+    # The retriever tools are synchronous LangChain tools, so they must use a
+    # synchronous gRPC stub instead of grpc.aio from worker threads.
+    retriever_channel = grpc.insecure_channel(settings.RETRIEVER_HOST)
     AgentState.retriever_client = retriever_pb2_grpc.RetrieverServiceStub(retriever_channel)
     log.info(f"[{settings.APP_NAME}] Connected to Retriever at {settings.RETRIEVER_HOST}")
 
