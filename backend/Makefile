@@ -1,7 +1,9 @@
 # Command shims for local development
 COMPOSE ?= docker compose
 SERVICE ?= 
-.PHONY: help up down restart logs ps lint format lint-fix
+EVAL_INPUT ?= evaluation/testcase/manual_test_3.csv
+
+.PHONY: help up down restart logs ps lint format lint-fix eval
 help:
 	@echo "Available targets:"
 	@echo "  make up         - start all services (detached)"
@@ -12,6 +14,7 @@ help:
 	@echo "  make lint       - ruff check"
 	@echo "  make format     - ruff format"
 	@echo "  make lint-fix   - format then lint --fix"
+	@echo "  make eval       - run evaluation (EVAL_INPUT=path/to/file.csv)"
 up:
 	$(COMPOSE) up -d
 down:
@@ -29,3 +32,5 @@ format:
 lint-fix:
 	ruff format .
 	ruff check --fix .
+eval:
+	python evaluation/run_eval.py --input $(EVAL_INPUT)

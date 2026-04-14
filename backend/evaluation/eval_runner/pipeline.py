@@ -97,6 +97,7 @@ def run_evaluation(
                 EvalRow(
                     theme=row["theme"],
                     question_type=question_type,
+                    format_based=row["format_based"],
                     testcase_id=str(row["testcase_id"]),
                     question=row["Question"],
                     human_question=row["Human_question"],

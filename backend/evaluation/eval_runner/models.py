@@ -55,6 +55,7 @@ class JudgeDecision(BaseModel):
 class EvalRow:
     theme: str
     question_type: str
+    format_based: str
     testcase_id: str
     question: str
     human_question: str
@@ -83,6 +84,7 @@ class EvalRow:
         return {
             "theme": self.theme,
             "question_type": self.question_type,
+            "format_based": self.format_based,
             "testcase_id": self.testcase_id,
             "Question": self.question,
             "Human_question": self.human_question,

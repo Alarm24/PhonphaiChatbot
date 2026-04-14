@@ -66,27 +66,33 @@ def mean_or_zero(values: list[float]) -> float:
 
 
 def aggregate_results(results: list[EvalRow]) -> list[dict[str, Any]]:
-    grouped: dict[tuple[str, str], list[EvalRow]] = defaultdict(list)
+    grouped: dict[tuple[str, str, str], list[EvalRow]] = defaultdict(list)
     for row in results:
-        grouped[(row.theme, row.question_type)].append(row)
+        grouped[(row.theme, row.question_type, row.format_based)].append(row)
 
     summary = []
-    for (theme, question_type), rows in sorted(grouped.items()):
-        summary.append(build_summary_row(theme, question_type, rows))
+    for (theme, question_type, format_based), rows in sorted(grouped.items()):
+        summary.append(build_summary_row(theme, question_type, format_based, rows))
 
-    overall_by_question_type: dict[str, list[EvalRow]] = defaultdict(list)
+    overall_by_question_type: dict[tuple[str, str], list[EvalRow]] = defaultdict(list)
     for row in results:
-        overall_by_question_type[row.question_type].append(row)
-    for question_type, rows in sorted(overall_by_question_type.items()):
-        summary.append(build_summary_row("overall", question_type, rows))
+        overall_by_question_type[(row.question_type, row.format_based)].append(row)
+    for (question_type, format_based), rows in sorted(overall_by_question_type.items()):
+        summary.append(build_summary_row("overall", question_type, format_based, rows))
 
     return summary
 
 
-def build_summary_row(theme: str, question_type: str, rows: list[EvalRow]) -> dict[str, Any]:
+def build_summary_row(
+    theme: str,
+    question_type: str,
+    format_based: str,
+    rows: list[EvalRow],
+) -> dict[str, Any]:
     return {
         "theme": theme,
         "question_type": question_type,
+        "format_based": format_based,
         "testcase_count": len(rows),
         "tool_called_correctly_mean": round(
             mean_or_zero([row.tool_called_correctly for row in rows]), 6
