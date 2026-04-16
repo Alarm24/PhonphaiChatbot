@@ -5,11 +5,27 @@ import json
 import re
 import statistics
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .models import EvalRow
 from .text_utils import contains_thai, normalize_text
+
+SOURCE_PATTERN = re.compile(
+    r"^(?P<filename>.+?)\s*-\s*(?:\u0e2b\u0e19\u0e49\u0e32|page|pages?)\s*(?P<start>\d+)(?:\s*[-\u2013]\s*(?P<end>\d+))?\s*$",
+    flags=re.IGNORECASE,
+)
+
+
+@dataclass(frozen=True)
+class ParsedSourceReference:
+    raw: str
+    filename: str
+    normalized_filename: str
+    page_start: int | None
+    page_end: int | None
+    pages: frozenset[int]
 
 
 def build_retrieved_context(retrieved_sources: list[dict[str, str]]) -> str:
@@ -22,7 +38,7 @@ def build_retrieved_context(retrieved_sources: list[dict[str, str]]) -> str:
 
 
 def tokenize_for_overlap(text: str) -> list[str]:
-    normalized = normalize_text(text).lower()
+    normalized = normalize_text(text).lower().replace(".", "")
     if not normalized:
         return []
 
@@ -59,6 +75,124 @@ def compute_overlap_metrics(retrieved_context: str, evidence: str) -> tuple[floa
     recall = overlap / sum(ref_counter.values()) if ref_counter else 0.0
     f1_score = 0.0 if precision + recall == 0 else 2 * precision * recall / (precision + recall)
     return precision, recall, f1_score
+
+
+def normalize_filename(value: str) -> str:
+    normalized = normalize_text(value).lower()
+    normalized = re.sub(r"\.[a-z0-9]{1,8}$", "", normalized)
+    normalized = re.sub(r"^\d+\s*[\.)-]?\s*", "", normalized)
+    normalized = re.sub(r"\s+", " ", normalized)
+    return normalized.strip()
+
+
+def parse_source_reference(value: str) -> ParsedSourceReference:
+    raw = normalize_text(value)
+    if not raw:
+        return ParsedSourceReference(
+            raw="",
+            filename="",
+            normalized_filename="",
+            page_start=None,
+            page_end=None,
+            pages=frozenset(),
+        )
+
+    match = SOURCE_PATTERN.match(raw)
+    if not match:
+        filename = raw
+        return ParsedSourceReference(
+            raw=raw,
+            filename=filename,
+            normalized_filename=normalize_filename(filename),
+            page_start=None,
+            page_end=None,
+            pages=frozenset(),
+        )
+
+    filename = normalize_text(match.group("filename"))
+    page_start = int(match.group("start"))
+    page_end = int(match.group("end") or page_start)
+    if page_end < page_start:
+        page_start, page_end = page_end, page_start
+
+    return ParsedSourceReference(
+        raw=raw,
+        filename=filename,
+        normalized_filename=normalize_filename(filename),
+        page_start=page_start,
+        page_end=page_end,
+        pages=frozenset(range(page_start, page_end + 1)),
+    )
+
+
+def compute_set_metrics(
+    predicted: set[str] | set[int],
+    reference: set[str] | set[int],
+) -> tuple[float, float, float]:
+    if not predicted and not reference:
+        return 1.0, 1.0, 1.0
+    if not predicted or not reference:
+        return 0.0, 0.0, 0.0
+
+    overlap = len(predicted & reference)
+    precision = overlap / len(predicted)
+    recall = overlap / len(reference)
+    f1_score = 0.0 if precision + recall == 0 else 2 * precision * recall / (precision + recall)
+    return precision, recall, f1_score
+
+
+def compute_source_match_metrics(
+    source: str,
+    retrieved_sources: list[dict[str, str]],
+) -> dict[str, Any]:
+    reference = parse_source_reference(source)
+    parsed_retrieved = [
+        parse_source_reference(item.get("title", ""))
+        for item in retrieved_sources
+        if normalize_text(item.get("title"))
+    ]
+
+    retrieved_filenames = sorted(
+        {
+            parsed.filename
+            for parsed in parsed_retrieved
+            if parsed.filename
+        }
+    )
+    retrieved_pages = sorted(
+        {
+            page
+            for parsed in parsed_retrieved
+            for page in parsed.pages
+        }
+    )
+
+    file_precision, file_recall, file_f1_score = compute_set_metrics(
+        {
+            parsed.normalized_filename
+            for parsed in parsed_retrieved
+            if parsed.normalized_filename
+        },
+        {reference.normalized_filename} if reference.normalized_filename else set(),
+    )
+    page_precision, page_recall, page_f1_score = compute_set_metrics(
+        set(retrieved_pages),
+        set(reference.pages),
+    )
+
+    return {
+        "source_filename": reference.filename,
+        "source_page_start": reference.page_start,
+        "source_page_end": reference.page_end,
+        "retrieved_filenames": retrieved_filenames,
+        "retrieved_pages": retrieved_pages,
+        "file_precision": file_precision,
+        "file_recall": file_recall,
+        "file_f1_score": file_f1_score,
+        "page_precision": page_precision,
+        "page_recall": page_recall,
+        "page_f1_score": page_f1_score,
+    }
 
 
 def mean_or_zero(values: list[float]) -> float:
