@@ -2,8 +2,15 @@
 .git
 .gitignore
 **/.ruff_cache
+**/.pytest_cache
+**/.mypy_cache
+**/.tox
+**/.nox
+**/.cache
 **/__pycache__
 .claude
+.vscode
+.idea
 
 # Environment and Secrets
 .env
@@ -17,3 +24,17 @@ data/
 *.pyc
 *.pyo
 *.pyd
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+dist/
+build/
+*.egg-info/
+
+# Local environments and logs
+.venv/
+venv/
+env/
+ENV/
+*.log

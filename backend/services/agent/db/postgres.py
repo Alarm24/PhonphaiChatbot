@@ -35,7 +35,13 @@ class PostgresTicketStore:
                 process_level
             FROM issue_logs
             WHERE code = %(ticket_code)s
-            ORDER BY issue_id, "user", status, process_level
+            ORDER BY
+                updated_date DESC NULLS LAST,
+                issue_id DESC NULLS LAST,
+                "user" DESC NULLS LAST,
+                status,
+                process_level
+            LIMIT 1
         """
 
         with connect(self._conninfo, row_factory=dict_row) as conn:
