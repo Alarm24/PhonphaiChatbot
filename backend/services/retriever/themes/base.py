@@ -8,6 +8,7 @@ from sentence_transformers import CrossEncoder
 
 class BaseTheme:
     _shared_reranker = None
+    _shared_reranker_key = None
 
     def __init__(self, theme_name):
         self.theme_name = theme_name
@@ -15,12 +16,19 @@ class BaseTheme:
         self.settings = get_settings()
 
         # Load the reranker once and share it across all theme instances.
-        if BaseTheme._shared_reranker is None:
-            log.info(f"Loading Reranker Model: {self.settings.RERANK_MODEL_NAME}")
+        reranker_key = (
+            self.settings.RERANK_MODEL_NAME,
+            self._resolve_rerank_device(self.settings.RERANK_DEVICE),
+        )
+        if BaseTheme._shared_reranker is None or BaseTheme._shared_reranker_key != reranker_key:
+            log.info(
+                f"Loading Reranker Model: {self.settings.RERANK_MODEL_NAME} on {reranker_key[1]}"
+            )
             BaseTheme._shared_reranker = CrossEncoder(
                 self.settings.RERANK_MODEL_NAME,
-                device="cuda",
+                device=reranker_key[1],
             )
+            BaseTheme._shared_reranker_key = reranker_key
         self.reranker = BaseTheme._shared_reranker
 
         # 2. Initialize variables for local BM25 indexing
@@ -48,14 +56,18 @@ class BaseTheme:
         else:
             self.bm25 = None
 
-    def search(self, query, limit=None, fetch_k=None):
-        """Hybrid Search (Dense + Sparse) with Reciprocal Rank Fusion and Reranking"""
+    def _resolve_rerank_device(self, configured_device):
+        if configured_device and configured_device != "auto":
+            return configured_device
 
-        # Override with config values if not explicitly passed
-        limit = limit or self.settings.RERANK_TOP_K
-        fetch_k = fetch_k or self.settings.RETRIEVAL_K
+        try:
+            import torch
 
-        # --- 1. DENSE RETRIEVAL (ChromaDB) ---
+            return "cuda" if torch.cuda.is_available() else "cpu"
+        except Exception:
+            return "cpu"
+
+    def _dense_retrieval(self, query, fetch_k):
         dense_results = self.chroma.search(self.theme_name, query, limit=fetch_k)
         dense_docs = []
         if dense_results["documents"]:
@@ -67,8 +79,9 @@ class BaseTheme:
                         "metadata": dense_results["metadatas"][0][i],
                     }
                 )
+        return dense_docs
 
-        # --- 2. SPARSE RETRIEVAL (BM25) ---
+    def _sparse_retrieval(self, query, fetch_k):
         sparse_docs = []
         if self.bm25:
             tokenized_query = self._tokenize(query)
@@ -84,45 +97,75 @@ class BaseTheme:
                             "metadata": self.corpus_metadata[idx],
                         }
                     )
+        return sparse_docs
 
-        # --- 3. WEIGHTED RECIPROCAL RANK FUSION (RRF) ---
+    def _fuse_rankings(self, dense_docs, sparse_docs, semantic_weight, bm25_weight):
         rrf_map = {}
         k_rrf = 60
 
-        # 1. Apply Semantic (Dense) Weight
-        semantic_weight = self.settings.HYBRID_SEMANTIC_WEIGHT
         for rank, doc in enumerate(dense_docs):
-            # Calculate base RRF and multiply by the semantic weight
             score = (1 / (k_rrf + rank + 1)) * semantic_weight
             rrf_map[doc["id"]] = {"doc": doc, "rrf_score": score}
 
-        # 2. Apply Keyword (BM25) Weight
-        bm25_weight = self.settings.HYBRID_BM25_WEIGHT
         for rank, doc in enumerate(sparse_docs):
-            # Calculate base RRF and multiply by the BM25 weight
             score_addition = (1 / (k_rrf + rank + 1)) * bm25_weight
-
-            # Add to existing score if the document was found in both searches
             if doc["id"] in rrf_map:
                 rrf_map[doc["id"]]["rrf_score"] += score_addition
             else:
                 rrf_map[doc["id"]] = {"doc": doc, "rrf_score": score_addition}
 
         fused_results = sorted(rrf_map.values(), key=lambda x: x["rrf_score"], reverse=True)
-        candidates = [item["doc"] for item in fused_results[:fetch_k]]
+        return [item["doc"] for item in fused_results]
 
-        if not candidates:
-            return []
+    def rank_candidates(
+        self,
+        query,
+        fetch_k=None,
+        semantic_weight=None,
+        bm25_weight=None,
+    ):
+        fetch_k = fetch_k or self.settings.RETRIEVAL_K
+        semantic_weight = (
+            self.settings.HYBRID_SEMANTIC_WEIGHT
+            if semantic_weight is None
+            else semantic_weight
+        )
+        bm25_weight = self.settings.HYBRID_BM25_WEIGHT if bm25_weight is None else bm25_weight
 
-        # --- 4. RERANKING (Cross-Encoder) ---
-        pairs = [[query, doc["content"]] for doc in candidates]
+        dense_docs = self._dense_retrieval(query, fetch_k)
+        sparse_docs = self._sparse_retrieval(query, fetch_k)
+        hybrid_docs = self._fuse_rankings(
+            dense_docs=dense_docs,
+            sparse_docs=sparse_docs,
+            semantic_weight=semantic_weight,
+            bm25_weight=bm25_weight,
+        )[:fetch_k]
+        if not hybrid_docs:
+            return {"hybrid_docs": [], "reranked_docs": []}
+
+        pairs = [[query, doc["content"]] for doc in hybrid_docs]
         rerank_scores = self.reranker.predict(pairs)
 
-        for idx, doc in enumerate(candidates):
-            doc["score"] = float(rerank_scores[idx])
+        reranked_docs = []
+        for idx, doc in enumerate(hybrid_docs):
+            reranked_doc = dict(doc)
+            reranked_doc["score"] = float(rerank_scores[idx])
+            reranked_docs.append(reranked_doc)
+        reranked_docs.sort(key=lambda x: x["score"], reverse=True)
 
-        # Final sort based on the Cross-Encoder's score
-        final_results = sorted(candidates, key=lambda x: x["score"], reverse=True)
+        return {
+            "hybrid_docs": hybrid_docs,
+            "reranked_docs": reranked_docs,
+        }
+
+    def search(self, query, limit=None, fetch_k=None):
+        """Hybrid Search (Dense + Sparse) with Reciprocal Rank Fusion and Reranking"""
+
+        # Override with config values if not explicitly passed
+        limit = limit or self.settings.RERANK_TOP_K
+        fetch_k = fetch_k or self.settings.RETRIEVAL_K
+        rankings = self.rank_candidates(query=query, fetch_k=fetch_k)
+        final_results = rankings["reranked_docs"]
 
         parsed_results = []
         for doc in final_results[:limit]:  # Cut off exactly at RERANK_TOP_K limit
