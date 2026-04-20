@@ -22,11 +22,13 @@ ENV/
 
 # Databases & Local Volumes
 chroma_data/
+qdrant_data/
 mongo_data/
 postgres_data/
 *.sqlite3
 backend/evaluation/outputs/
 backend/evaluation/testcase/
+
 # Build & Package Artifacts
 build/
 dist/

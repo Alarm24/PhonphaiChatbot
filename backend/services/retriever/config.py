@@ -10,7 +10,8 @@ class Settings(BaseSettings):
 
     # Database URIs
     MONGO_URI: str = "mongodb://mongo:27017"
-    CHROMA_HOST: str = "chroma"
+    QDRANT_HOST: str = "qdrant"
+    QDRANT_PORT: int = 6333
     EMBEDDING_MODEL_NAME: str = "intfloat/multilingual-e5-large"
     RERANK_MODEL_NAME: str = "BAAI/bge-reranker-v2-m3"
     RERANK_DEVICE: str = "auto"

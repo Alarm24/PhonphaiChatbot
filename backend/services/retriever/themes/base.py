@@ -1,6 +1,6 @@
 import numpy as np
 from config import get_settings
-from db.chroma import ChromaDB
+from db.qdrant import QdrantDB
 from logger import log
 from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
@@ -12,7 +12,7 @@ class BaseTheme:
 
     def __init__(self, theme_name):
         self.theme_name = theme_name
-        self.chroma = ChromaDB()
+        self.vector_db = QdrantDB()
         self.settings = get_settings()
 
         # Load the reranker once and share it across all theme instances.
@@ -43,8 +43,8 @@ class BaseTheme:
         return text.lower().split()
 
     def _sync_bm25_index(self):
-        """Pulls all docs from Chroma and builds an in-memory BM25 index."""
-        data = self.chroma.get_all_documents(self.theme_name)
+        """Pulls all docs from the vector store and builds an in-memory BM25 index."""
+        data = self.vector_db.get_all_documents(self.theme_name)
         if data and data.get("documents"):
             self.corpus_docs = data["documents"]
             self.corpus_ids = data["ids"]
@@ -68,7 +68,7 @@ class BaseTheme:
             return "cpu"
 
     def _dense_retrieval(self, query, fetch_k):
-        dense_results = self.chroma.search(self.theme_name, query, limit=fetch_k)
+        dense_results = self.vector_db.search(self.theme_name, query, limit=fetch_k)
         dense_docs = []
         if dense_results["documents"]:
             for i in range(len(dense_results["documents"][0])):
@@ -126,9 +126,7 @@ class BaseTheme:
     ):
         fetch_k = fetch_k or self.settings.RETRIEVAL_K
         semantic_weight = (
-            self.settings.HYBRID_SEMANTIC_WEIGHT
-            if semantic_weight is None
-            else semantic_weight
+            self.settings.HYBRID_SEMANTIC_WEIGHT if semantic_weight is None else semantic_weight
         )
         bm25_weight = self.settings.HYBRID_BM25_WEIGHT if bm25_weight is None else bm25_weight
 
@@ -196,18 +194,17 @@ class BaseTheme:
 
             ids.append(f"{filename}_chunk_{i}")
 
-        self.chroma.add_documents(self.theme_name, texts, metadatas, ids)
+        self.vector_db.add_documents(self.theme_name, texts, metadatas, ids)
         self._sync_bm25_index()
 
     def delete_knowledge(self, filename: str):
         success = False
         try:
-            collection = self.chroma.client.get_collection(name=self.theme_name)
-            collection.delete(where={"source": filename})
+            self.vector_db.delete_documents(self.theme_name, filename)
             log.info(f"Deleted vector chunks for {filename} from {self.theme_name}")
             success = True
         except Exception as e:
-            log.error(f"Chroma delete error: {e}")
+            log.error(f"Qdrant delete error: {e}")
 
         if success:
             self._sync_bm25_index()

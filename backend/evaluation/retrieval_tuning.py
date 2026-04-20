@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import os
 import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
+
+from eval_runner.dataset import infer_theme_from_input_path, load_rows, normalize_row, validate_rows
+from eval_runner.metrics import compute_overlap_metrics, write_csv
+from eval_runner.models import QUESTION_FIELDS
 
 CURRENT_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = CURRENT_DIR.parent
@@ -17,11 +20,6 @@ if str(CURRENT_DIR) not in sys.path:
     sys.path.insert(0, str(CURRENT_DIR))
 if str(RETRIEVER_DIR) not in sys.path:
     sys.path.insert(0, str(RETRIEVER_DIR))
-
-from eval_runner.dataset import infer_theme_from_input_path, load_rows, normalize_row, validate_rows
-from eval_runner.metrics import compute_overlap_metrics, write_csv
-from eval_runner.models import QUESTION_FIELDS
-
 
 MAX_PLOT_SERIES = 11
 
@@ -71,9 +69,9 @@ def parse_args() -> argparse.Namespace:
         help="Optional testcase cap per input file for quick debugging.",
     )
     parser.add_argument(
-        "--chroma-host",
+        "--qdrant-host",
         default=None,
-        help="Override CHROMA_HOST when running outside Docker.",
+        help="Override QDRANT_HOST when running outside Docker.",
     )
     parser.add_argument(
         "--rerank-device",
@@ -140,10 +138,14 @@ def compute_best_configs(
 
     for retrieval_k in range(1, max_k + 1):
         subset = reranked_docs[:retrieval_k]
-        subset_sorted = sorted(subset, key=lambda item: item.get("score", float("-inf")), reverse=True)
+        subset_sorted = sorted(
+            subset, key=lambda item: item.get("score", float("-inf")), reverse=True
+        )
         for rerank_top_k in range(1, retrieval_k + 1):
             context = "\n".join(
-                str(item.get("content", "")).strip() for item in subset_sorted[:rerank_top_k] if item.get("content")
+                str(item.get("content", "")).strip()
+                for item in subset_sorted[:rerank_top_k]
+                if item.get("content")
             )
             _, recall, _ = compute_overlap_metrics(context, evidence)
             row = {
@@ -277,7 +279,9 @@ def render_svg_line_chart(
     for idx, item in enumerate(series):
         color = palette[idx % len(palette)]
         y = legend_y + idx * 26
-        parts.append(f'<line x1="{legend_x}" y1="{y}" x2="{legend_x + 26}" y2="{y}" stroke="{color}" stroke-width="4"/>')
+        parts.append(
+            f'<line x1="{legend_x}" y1="{y}" x2="{legend_x + 26}" y2="{y}" stroke="{color}" stroke-width="4"/>'
+        )
         parts.append(
             f'<text x="{legend_x + 36}" y="{y + 5}" font-size="14" font-family="Segoe UI, Arial, sans-serif" fill="#323f4b">{escape_xml(item["label"])}</text>'
         )
@@ -300,8 +304,8 @@ def escape_xml(value: str) -> str:
 
 def main() -> int:
     args = parse_args()
-    if args.chroma_host:
-        os.environ["CHROMA_HOST"] = args.chroma_host
+    if args.qdrant_host:
+        os.environ["QDRANT_HOST"] = args.qdrant_host
     if args.rerank_device:
         os.environ["RERANK_DEVICE"] = args.rerank_device
 
@@ -330,7 +334,9 @@ def main() -> int:
     theme_engines = {theme: make_theme(theme) for theme in sorted(rows_by_theme)}
     per_query_rows: list[dict[str, Any]] = []
     curve_bucket: dict[tuple[str, str, str, float], list[list[float]]] = defaultdict(list)
-    best_config_bucket: dict[tuple[str, str, float], list[dict[str, int | float]]] = defaultdict(list)
+    best_config_bucket: dict[tuple[str, str, float], list[dict[str, int | float]]] = defaultdict(
+        list
+    )
     config_grid_rows: list[dict[str, Any]] = []
 
     for theme, theme_rows in rows_by_theme.items():
@@ -353,13 +359,23 @@ def main() -> int:
                     reranked_docs = rankings["reranked_docs"]
                     hybrid_curve = compute_recall_curve(hybrid_docs, evidence, args.max_k)
                     rerank_curve = compute_recall_curve(reranked_docs, evidence, args.max_k)
-                    best_global, config_grid = compute_best_configs(reranked_docs, evidence, args.max_k)
+                    best_global, config_grid = compute_best_configs(
+                        reranked_docs, evidence, args.max_k
+                    )
 
                     key_base = (theme, question_type, semantic_weight)
-                    curve_bucket[(theme, question_type, "hybrid", semantic_weight)].append(hybrid_curve)
-                    curve_bucket[(theme, question_type, "rerank", semantic_weight)].append(rerank_curve)
-                    curve_bucket[("overall", question_type, "hybrid", semantic_weight)].append(hybrid_curve)
-                    curve_bucket[("overall", question_type, "rerank", semantic_weight)].append(rerank_curve)
+                    curve_bucket[(theme, question_type, "hybrid", semantic_weight)].append(
+                        hybrid_curve
+                    )
+                    curve_bucket[(theme, question_type, "rerank", semantic_weight)].append(
+                        rerank_curve
+                    )
+                    curve_bucket[("overall", question_type, "hybrid", semantic_weight)].append(
+                        hybrid_curve
+                    )
+                    curve_bucket[("overall", question_type, "rerank", semantic_weight)].append(
+                        rerank_curve
+                    )
 
                     best_config_bucket[key_base].append(
                         {
@@ -493,7 +509,9 @@ def main() -> int:
     write_csv(output_dir / "rerank_config_grid.csv", config_grid_rows)
 
     for theme in sorted({row["theme"] for row in summary_rows}):
-        for question_type in sorted({row["question_type"] for row in summary_rows if row["theme"] == theme}):
+        for question_type in sorted(
+            {row["question_type"] for row in summary_rows if row["theme"] == theme}
+        ):
             for mode in ("hybrid", "rerank"):
                 chart_series = []
                 for semantic_weight in weights:
