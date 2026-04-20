@@ -24,10 +24,9 @@ ENV/
 chroma_data/
 mongo_data/
 postgres_data/
-evaluation/testcase/
 *.sqlite3
 backend/evaluation/outputs/
-
+backend/evaluation/testcase/
 # Build & Package Artifacts
 build/
 dist/
