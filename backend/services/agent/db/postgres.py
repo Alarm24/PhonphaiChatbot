@@ -32,7 +32,8 @@ class PostgresTicketStore:
                 issue_id,
                 "user",
                 status,
-                process_level
+                process_level,
+                updated_date
             FROM issue_logs
             WHERE code = %(ticket_code)s
             ORDER BY

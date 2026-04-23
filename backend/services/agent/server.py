@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import chatbot_pb2
@@ -75,11 +76,11 @@ def _build_sources(final_state: dict) -> tuple[list, str | None]:
 
 
 class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
-    def Chat(self, request, context):
+    async def Chat(self, request, context):
         log.info(f"🧠 Processing query: {request.user_message} (Session: {request.session_id})")
 
         initial_state = {"messages": [HumanMessage(content=request.user_message)]}
-        final_state = langgraph_app.invoke(initial_state)
+        final_state = await langgraph_app.ainvoke(initial_state)
 
         final_message = final_state["messages"][-1]
         ai_text = final_message.content
@@ -105,17 +106,43 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
         initial_state = {"messages": [HumanMessage(content=request.user_message)]}
 
         try:
-            # Run the graph to completion using astream to get node-level updates
-            final_state = {}
-            async for chunk in langgraph_app.astream(
-                initial_state, stream_mode="updates"
-            ):
-                for node_name, update in chunk.items():
-                    # Merge each node's output into final_state
-                    for key, value in update.items():
-                        final_state[key] = value
+            final_state: dict = {}
+            any_token_streamed: bool = False
 
-            # Extract the final answer text
+            async for mode, data in langgraph_app.astream(
+                initial_state,
+                stream_mode=["updates", "messages"],
+            ):
+                if mode == "messages":
+                    msg_chunk, metadata = data
+
+                    if metadata.get("langgraph_node") != "agent":
+                        continue
+
+                    if getattr(msg_chunk, "tool_call_chunks", None):
+                        continue
+
+                    content = getattr(msg_chunk, "content", "") or ""
+                    if isinstance(content, list):
+                        content = "".join(
+                            part.get("text", "")
+                            for part in content
+                            if isinstance(part, dict)
+                        )
+                    if not content:
+                        continue
+
+                    any_token_streamed = True
+                    yield chatbot_pb2.ChatStreamChunk(
+                        session_id=request.session_id,
+                        token=content,
+                    )
+
+                elif mode == "updates":
+                    for _node_name, update in data.items():
+                        for key, value in update.items():
+                            final_state[key] = value
+
             messages = final_state.get("messages", [])
             ai_text = messages[-1].content if messages else ""
 
@@ -123,17 +150,17 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
             if ticket_override:
                 ai_text = ticket_override
 
-            # Stream the answer text word-by-word for typewriter effect
-            words = ai_text.split(" ")
-            for i, word in enumerate(words):
-                token = word if i == 0 else " " + word
-                yield chatbot_pb2.ChatStreamChunk(
-                    session_id=request.session_id,
-                    token=token,
-                )
-
-            # Send final response with sources and cost
             cost = float(final_state.get("cost") or 0.0)
+
+            if not any_token_streamed and ai_text:
+                chunk_size = 3
+                for i in range(0, len(ai_text), chunk_size):
+                    yield chatbot_pb2.ChatStreamChunk(
+                        session_id=request.session_id,
+                        token=ai_text[i:i + chunk_size],
+                    )
+                    await asyncio.sleep(0.025)
+
             yield chatbot_pb2.ChatStreamChunk(
                 session_id=request.session_id,
                 final_response=chatbot_pb2.ChatResponse(
