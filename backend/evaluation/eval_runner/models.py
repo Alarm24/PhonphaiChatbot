@@ -55,7 +55,11 @@ class JudgeDecision(BaseModel):
 class EvalRow:
     theme: str
     question_type: str
+    format_based: str
     testcase_id: str
+    source_filename: str
+    source_page_start: int | None
+    source_page_end: int | None
     question: str
     human_question: str
     evaluated_prompt: str
@@ -65,6 +69,8 @@ class EvalRow:
     model_response: str
     retrieved_sources: list[dict[str, str]]
     retrieved_context: str
+    retrieved_filenames: list[str]
+    retrieved_pages: list[int]
     expected_tool: str
     actual_tool: str
     tool_called_correctly: int
@@ -83,7 +89,11 @@ class EvalRow:
         return {
             "theme": self.theme,
             "question_type": self.question_type,
+            "format_based": self.format_based,
             "testcase_id": self.testcase_id,
+            "source_filename": self.source_filename,
+            "source_page_start": self.source_page_start,
+            "source_page_end": self.source_page_end,
             "Question": self.question,
             "Human_question": self.human_question,
             "evaluated_prompt": self.evaluated_prompt,
@@ -105,5 +115,7 @@ class EvalRow:
             "extraneousness": self.extraneousness,
             "conciseness": self.conciseness,
             "judge_rationale": self.judge_rationale,
+            "retrieved_filenames": json.dumps(self.retrieved_filenames, ensure_ascii=False),
+            "retrieved_pages": json.dumps(self.retrieved_pages, ensure_ascii=False),
             "retrieved_sources": json.dumps(self.retrieved_sources, ensure_ascii=False),
         }

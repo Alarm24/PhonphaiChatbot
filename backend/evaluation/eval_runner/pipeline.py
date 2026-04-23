@@ -9,6 +9,7 @@ from .judge import judge_answer, load_judge_prompt
 from .metrics import (
     aggregate_results,
     build_retrieved_context,
+    compute_source_match_metrics,
     compute_overlap_metrics,
     write_csv,
     write_json,
@@ -80,6 +81,10 @@ def run_evaluation(
                 retrieved_context,
                 row["Evidence"],
             )
+            source_match_metrics = compute_source_match_metrics(
+                source=row["Source"],
+                retrieved_sources=retrieved_sources,
+            )
             judgment = judge_answer(
                 judge_endpoint=settings.judge_endpoint,
                 api_key=settings.openrouter_api_key,
@@ -97,7 +102,11 @@ def run_evaluation(
                 EvalRow(
                     theme=row["theme"],
                     question_type=question_type,
+                    format_based=row["format_based"],
                     testcase_id=str(row["testcase_id"]),
+                    source_filename=source_match_metrics["source_filename"],
+                    source_page_start=source_match_metrics["source_page_start"],
+                    source_page_end=source_match_metrics["source_page_end"],
                     question=row["Question"],
                     human_question=row["Human_question"],
                     evaluated_prompt=prompt,
@@ -107,6 +116,8 @@ def run_evaluation(
                     model_response=answer,
                     retrieved_sources=retrieved_sources,
                     retrieved_context=retrieved_context,
+                    retrieved_filenames=source_match_metrics["retrieved_filenames"],
+                    retrieved_pages=source_match_metrics["retrieved_pages"],
                     expected_tool=expected_tool,
                     actual_tool=actual_tool,
                     tool_called_correctly=tool_called_correctly,

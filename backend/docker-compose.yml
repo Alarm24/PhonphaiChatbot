@@ -16,7 +16,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U phonphai -d phonphai"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
     networks:
       - rag_net
 
