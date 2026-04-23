@@ -105,6 +105,12 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
 
         initial_state = {"messages": [HumanMessage(content=request.user_message)]}
 
+        # Smooth typewriter pacing — emit small fixed-size chunks at a consistent
+        # interval so bursty LLM output (e.g. Gemini sometimes sends 30+ chars at
+        # once) becomes a steady stream on the client.
+        SMOOTH_CHUNK_SIZE = 2
+        SMOOTH_DELAY_SEC = 0.025
+
         try:
             final_state: dict = {}
             any_token_streamed: bool = False
@@ -133,10 +139,12 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
                         continue
 
                     any_token_streamed = True
-                    yield chatbot_pb2.ChatStreamChunk(
-                        session_id=request.session_id,
-                        token=content,
-                    )
+                    for i in range(0, len(content), SMOOTH_CHUNK_SIZE):
+                        yield chatbot_pb2.ChatStreamChunk(
+                            session_id=request.session_id,
+                            token=content[i:i + SMOOTH_CHUNK_SIZE],
+                        )
+                        await asyncio.sleep(SMOOTH_DELAY_SEC)
 
                 elif mode == "updates":
                     for _node_name, update in data.items():
@@ -153,13 +161,12 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
             cost = float(final_state.get("cost") or 0.0)
 
             if not any_token_streamed and ai_text:
-                chunk_size = 3
-                for i in range(0, len(ai_text), chunk_size):
+                for i in range(0, len(ai_text), SMOOTH_CHUNK_SIZE):
                     yield chatbot_pb2.ChatStreamChunk(
                         session_id=request.session_id,
-                        token=ai_text[i:i + chunk_size],
+                        token=ai_text[i:i + SMOOTH_CHUNK_SIZE],
                     )
-                    await asyncio.sleep(0.025)
+                    await asyncio.sleep(SMOOTH_DELAY_SEC)
 
             yield chatbot_pb2.ChatStreamChunk(
                 session_id=request.session_id,
