@@ -27,17 +27,14 @@ services:
     networks:
       - rag_net
 
-  chroma:
-    image: chromadb/chroma:0.5.3
+  qdrant:
+    image: qdrant/qdrant:v1.10.1
     ports:
-      - "8000:8000" #for development, remove in production
+      - "6333:6333"
     volumes:
-      - ./data/chroma_data:/chroma/chroma
+      - ./data/qdrant_data:/qdrant/storage
     networks:
       - rag_net
-    environment:
-      - ANONYMIZED_TELEMETRY=False
-      - CHROMA_SERVER_CORS_ALLOW_ORIGINS=["*"]
 
   # --- Microservices ---
   retriever:
@@ -56,14 +53,15 @@ services:
               capabilities: [gpu]
     environment:
       - MONGO_URI=mongodb://mongo:27017
-      - CHROMA_HOST=chroma
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
       - ANONYMIZED_TELEMETRY=False
       - EMBEDDING_MODEL_NAME=intfloat/multilingual-e5-large
       - RERANK_MODEL_NAME=BAAI/bge-reranker-v2-m3
       - HYBRID_SEMANTIC_WEIGHT=0.6
       - HYBRID_BM25_WEIGHT=0.4
-      - RETRIEVAL_K=15
-      - RERANK_TOP_K=5
+      - RETRIEVAL_K=20
+      - RERANK_TOP_K=10
       - CHUNK_SIZE=1000
       - CHUNK_OVERLAP=200
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
@@ -77,6 +75,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    depends_on:
+      qdrant:
+        condition: service_started
     networks:
       - rag_net
 

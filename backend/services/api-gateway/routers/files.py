@@ -115,7 +115,7 @@ async def list_files():
 
 @router.delete("/{file_id}")
 async def delete_file(file_id: str, filename: str, theme: str):
-    """Delete a file from both MongoDB and ChromaDB"""
+    """Delete a file from both MongoDB and the vector store."""
     try:
         request = retriever_pb2.DeleteFileRequest(file_id=file_id, filename=filename, theme=theme)
         response = await gRPCState.retriever_client.DeleteFile(request)

@@ -27,7 +27,7 @@ class PostgresTicketStore:
             return []
 
         query = """
-            SELECT DISTINCT
+            SELECT
                 code,
                 issue_id,
                 "user",

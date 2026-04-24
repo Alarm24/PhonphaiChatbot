@@ -153,26 +153,12 @@ def compute_source_match_metrics(
     ]
 
     retrieved_filenames = sorted(
-        {
-            parsed.filename
-            for parsed in parsed_retrieved
-            if parsed.filename
-        }
+        {parsed.filename for parsed in parsed_retrieved if parsed.filename}
     )
-    retrieved_pages = sorted(
-        {
-            page
-            for parsed in parsed_retrieved
-            for page in parsed.pages
-        }
-    )
+    retrieved_pages = sorted({page for parsed in parsed_retrieved for page in parsed.pages})
 
     file_precision, file_recall, file_f1_score = compute_set_metrics(
-        {
-            parsed.normalized_filename
-            for parsed in parsed_retrieved
-            if parsed.normalized_filename
-        },
+        {parsed.normalized_filename for parsed in parsed_retrieved if parsed.normalized_filename},
         {reference.normalized_filename} if reference.normalized_filename else set(),
     )
     page_precision, page_recall, page_f1_score = compute_set_metrics(
