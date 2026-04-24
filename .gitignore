@@ -21,7 +21,6 @@ env/
 ENV/
 
 # Databases & Local Volumes
-chroma_data/
 qdrant_data/
 mongo_data/
 postgres_data/

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+import threading
 
 from config import get_settings
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -13,17 +14,39 @@ UUID_NAMESPACE = uuid.UUID("12345678-1234-5678-1234-567812345678")
 
 
 class QdrantDB:
+    _shared_embeddings = None
+    _shared_embedding_model_name = None
+    _embedding_lock = threading.Lock()
+
     def __init__(self, host: str | None = None, port: int | None = None):
         settings = get_settings()
         self.host = host or settings.QDRANT_HOST
         self.port = port or settings.QDRANT_PORT
 
-        self.embeddings = HuggingFaceEmbeddings(
-            model_name=settings.EMBEDDING_MODEL_NAME,
-            model_kwargs={"device": "cpu"},
-        )
-        self.vector_size = len(self.embeddings.embed_query("dimension probe"))
+        self.embeddings = self._get_embeddings(settings.EMBEDDING_MODEL_NAME)
+        self.vector_size = len(self._embed_query("dimension probe"))
         self.client = self._connect()
+
+    @classmethod
+    def _get_embeddings(cls, model_name: str):
+        if cls._shared_embeddings is None or cls._shared_embedding_model_name != model_name:
+            with cls._embedding_lock:
+                if cls._shared_embeddings is None or cls._shared_embedding_model_name != model_name:
+                    log.info(f"Loading Embedding Model: {model_name} on cpu")
+                    cls._shared_embeddings = HuggingFaceEmbeddings(
+                        model_name=model_name,
+                        model_kwargs={"device": "cpu"},
+                    )
+                    cls._shared_embedding_model_name = model_name
+        return cls._shared_embeddings
+
+    def _embed_query(self, query_text: str):
+        with self._embedding_lock:
+            return self.embeddings.embed_query(query_text)
+
+    def _embed_documents(self, documents):
+        with self._embedding_lock:
+            return self.embeddings.embed_documents(documents)
 
     @retry(stop=stop_after_attempt(10), wait=wait_fixed(3))
     def _connect(self):
@@ -57,7 +80,7 @@ class QdrantDB:
 
     def add_documents(self, theme_name, documents, metadatas, ids):
         collection_name = self._ensure_collection(theme_name)
-        vectors = self.embeddings.embed_documents(documents)
+        vectors = self._embed_documents(documents)
         points = []
         for idx, document in enumerate(documents):
             point_id = str(ids[idx]) if idx < len(ids) else str(uuid.uuid4())
@@ -107,7 +130,7 @@ class QdrantDB:
 
     def search(self, theme_name, query_text, limit=3):
         collection_name = self._ensure_collection(theme_name)
-        query_vector = self.embeddings.embed_query(query_text)
+        query_vector = self._embed_query(query_text)
         results = self._query_points(
             collection_name=collection_name,
             query_vector=query_vector,

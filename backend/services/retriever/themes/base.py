@@ -1,3 +1,6 @@
+import os
+import threading
+
 import numpy as np
 from config import get_settings
 from db.qdrant import QdrantDB
@@ -9,27 +12,16 @@ from sentence_transformers import CrossEncoder
 class BaseTheme:
     _shared_reranker = None
     _shared_reranker_key = None
+    _thread_local = threading.local()
 
     def __init__(self, theme_name):
         self.theme_name = theme_name
         self.vector_db = QdrantDB()
         self.settings = get_settings()
-
-        # Load the reranker once and share it across all theme instances.
-        reranker_key = (
+        self._reranker_key = (
             self.settings.RERANK_MODEL_NAME,
             self._resolve_rerank_device(self.settings.RERANK_DEVICE),
         )
-        if BaseTheme._shared_reranker is None or BaseTheme._shared_reranker_key != reranker_key:
-            log.info(
-                f"Loading Reranker Model: {self.settings.RERANK_MODEL_NAME} on {reranker_key[1]}"
-            )
-            BaseTheme._shared_reranker = CrossEncoder(
-                self.settings.RERANK_MODEL_NAME,
-                device=reranker_key[1],
-            )
-            BaseTheme._shared_reranker_key = reranker_key
-        self.reranker = BaseTheme._shared_reranker
 
         # 2. Initialize variables for local BM25 indexing
         self.corpus_docs = []
@@ -66,6 +58,38 @@ class BaseTheme:
             return "cuda" if torch.cuda.is_available() else "cpu"
         except Exception:
             return "cpu"
+
+    def _get_reranker(self, reranker_key):
+        scope = os.environ.get("RETRIEVER_RERANKER_SCOPE", "shared").strip().lower()
+        if scope == "thread":
+            rerankers = getattr(BaseTheme._thread_local, "rerankers", None)
+            if rerankers is None:
+                rerankers = {}
+                BaseTheme._thread_local.rerankers = rerankers
+            if reranker_key not in rerankers:
+                log.info(
+                    f"Loading thread-local Reranker Model: {self.settings.RERANK_MODEL_NAME} on {reranker_key[1]}"
+                )
+                rerankers[reranker_key] = CrossEncoder(
+                    self.settings.RERANK_MODEL_NAME,
+                    device=reranker_key[1],
+                )
+            return rerankers[reranker_key]
+
+        if BaseTheme._shared_reranker is None or BaseTheme._shared_reranker_key != reranker_key:
+            log.info(
+                f"Loading Reranker Model: {self.settings.RERANK_MODEL_NAME} on {reranker_key[1]}"
+            )
+            BaseTheme._shared_reranker = CrossEncoder(
+                self.settings.RERANK_MODEL_NAME,
+                device=reranker_key[1],
+            )
+            BaseTheme._shared_reranker_key = reranker_key
+        return BaseTheme._shared_reranker
+
+    @property
+    def reranker(self):
+        return self._get_reranker(self._reranker_key)
 
     def _dense_retrieval(self, query, fetch_k):
         dense_results = self.vector_db.search(self.theme_name, query, limit=fetch_k)

@@ -55,19 +55,53 @@ Start the backend stack first so the API gateway is reachable.
 
 ```powershell
 cd backend
-python evaluation/run_eval.py --input path\to\testcases.csv
+uv sync --project evaluation
+uv run --project evaluation python evaluation/run_eval.py --input path\to\testcases.csv
 ```
 
 Optional flags:
 
 ```powershell
-python evaluation/run_eval.py `
+uv run --project evaluation python evaluation/run_eval.py `
   --input path\to\testcases.xlsx `
-  --output-dir evaluation/outputs/run_01 `
+  --output-dir outputs/run_01 `
   --chat-endpoint http://localhost:8080/api/v1/chat/ `
   --judge-model google/gemini-2.5-flash `
   --limit 10
 ```
+
+## Retrieval Tuning
+Run retrieval tuning through the same `uv` project so retriever-side dependencies such as `langchain-huggingface` are available.
+
+Hybrid-only tuning sweeps semantic weight (`alpha`) and retrieval `k`, without running the reranker:
+
+```powershell
+cd backend
+uv sync --project evaluation
+uv run --project evaluation python evaluation/run_retrieval_hybrid_tuning.py `
+  --max-k 100 `
+  --qdrant-host localhost `
+  --workers 10
+```
+
+Rerank-only tuning uses one fixed semantic weight and sweeps rerank `k`:
+
+```powershell
+cd backend
+uv sync --project evaluation
+uv run --project evaluation python evaluation/run_retrieval_rerank_tuning.py `
+  --max-k 100 `
+  --qdrant-host localhost `
+  --rerank-device cpu `
+  --semantic-weight 0.6 `
+  --workers 4
+```
+
+Notes:
+- `run_retrieval_hybrid_tuning.py` is for hybrid alpha/k evaluation only.
+- `run_retrieval_rerank_tuning.py` is for rerank k evaluation only and does not sweep alpha.
+- With `--rerank-device cuda`, the rerank runner forces `--workers 1` on Windows to avoid native PyTorch/CUDA crashes.
+- The older combined `run_retrieval_tuning.py` is still available if you need both stages together.
 
 ## Output files
 - `eval_rows.csv`: one row per evaluated prompt

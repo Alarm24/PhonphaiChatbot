@@ -7,6 +7,14 @@ from .models import EvalSettings
 from .text_utils import normalize_text
 
 
+def find_dotenv(start_dir: Path) -> Path | None:
+    for directory in (start_dir, *start_dir.parents):
+        candidate = directory / ".env"
+        if candidate.exists():
+            return candidate
+    return None
+
+
 def load_dotenv_file(env_path: Path) -> None:
     if not env_path.exists():
         return
@@ -19,7 +27,9 @@ def load_dotenv_file(env_path: Path) -> None:
 
 
 def get_eval_settings() -> EvalSettings:
-    load_dotenv_file(Path(".env"))
+    dotenv_path = find_dotenv(Path(__file__).resolve().parent)
+    if dotenv_path is not None:
+        load_dotenv_file(dotenv_path)
 
     api_key = normalize_text(os.getenv("OPENROUTER_API_KEY"))
     if not api_key:

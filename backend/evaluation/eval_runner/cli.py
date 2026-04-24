@@ -18,7 +18,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--output-dir",
-        default="evaluation/outputs",
+        default="outputs",
         help="Directory for row-level and summary outputs.",
     )
     parser.add_argument(

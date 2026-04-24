@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import os
 import sys
+import threading
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -11,6 +13,11 @@ from typing import Any
 from eval_runner.dataset import infer_theme_from_input_path, load_rows, normalize_row, validate_rows
 from eval_runner.metrics import compute_overlap_metrics, write_csv
 from eval_runner.models import QUESTION_FIELDS
+
+try:
+    from tqdm import tqdm
+except ImportError:
+    tqdm = None
 
 CURRENT_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = CURRENT_DIR.parent
@@ -22,6 +29,8 @@ if str(RETRIEVER_DIR) not in sys.path:
     sys.path.insert(0, str(RETRIEVER_DIR))
 
 MAX_PLOT_SERIES = 11
+DEFAULT_WORKERS = 10
+DEFAULT_RERANK_WORKERS = 1
 
 
 def parse_args() -> argparse.Namespace:
@@ -77,6 +86,24 @@ def parse_args() -> argparse.Namespace:
         "--rerank-device",
         default=None,
         help="Override RERANK_DEVICE, for example cpu or cuda.",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=None,
+        help="Legacy shortcut to set both --hybrid-workers and --rerank-workers.",
+    )
+    parser.add_argument(
+        "--hybrid-workers",
+        type=int,
+        default=None,
+        help="Number of parallel worker threads for hybrid retrieval evaluation.",
+    )
+    parser.add_argument(
+        "--rerank-workers",
+        type=int,
+        default=None,
+        help="Number of parallel worker threads for rerank evaluation.",
     )
     return parser.parse_args()
 
@@ -302,6 +329,154 @@ def escape_xml(value: str) -> str:
     )
 
 
+class ProgressTracker:
+    def __init__(self, total: int, description: str) -> None:
+        self.total = total
+        self.description = description
+        self.count = 0
+        self._lock = threading.Lock()
+        self._bar = tqdm(total=total, desc=description, unit="task") if tqdm else None
+
+    def update(self, step: int = 1) -> None:
+        with self._lock:
+            self.count += step
+            if self._bar is not None:
+                self._bar.update(step)
+            else:
+                print(f"\r{self.description}: {self.count}/{self.total}", end="", flush=True)
+
+    def close(self) -> None:
+        with self._lock:
+            if self._bar is not None:
+                self._bar.close()
+            elif self.total:
+                print()
+
+
+THREAD_STATE = threading.local()
+
+
+def get_thread_theme_engine(theme: str):
+    engines = getattr(THREAD_STATE, "theme_engines", None)
+    if engines is None:
+        engines = {}
+        THREAD_STATE.theme_engines = engines
+    if theme not in engines:
+        engines[theme] = make_theme(theme)
+    return engines[theme]
+
+
+def is_cuda_device(device: str | None) -> bool:
+    if not device:
+        return False
+    return str(device).strip().lower().startswith("cuda")
+
+
+def run_parallel_tasks(
+    tasks: list[dict[str, Any]],
+    worker_count: int,
+    description: str,
+    evaluator,
+) -> list[dict[str, Any]]:
+    if not tasks:
+        return []
+
+    results: list[dict[str, Any]] = []
+    progress = ProgressTracker(total=len(tasks), description=description)
+    try:
+        with ThreadPoolExecutor(max_workers=max(1, worker_count)) as executor:
+            futures = [executor.submit(evaluator, task) for task in tasks]
+            for future in as_completed(futures):
+                results.append(future.result())
+                progress.update()
+    finally:
+        progress.close()
+    return results
+
+
+def evaluate_hybrid_task(task: dict[str, Any]) -> dict[str, Any]:
+    theme = task["theme"]
+    row = task["row"]
+    question_type = task["question_type"]
+    query_text = task["query_text"]
+    semantic_weight = task["semantic_weight"]
+    max_k = task["max_k"]
+    evidence = row["Evidence"]
+    bm25_weight = round(1.0 - semantic_weight, 4)
+
+    theme_engine = get_thread_theme_engine(theme)
+    dense_docs = theme_engine._dense_retrieval(query_text, max_k)
+    sparse_docs = theme_engine._sparse_retrieval(query_text, max_k)
+    hybrid_docs = theme_engine._fuse_rankings(
+        dense_docs=dense_docs,
+        sparse_docs=sparse_docs,
+        semantic_weight=semantic_weight,
+        bm25_weight=bm25_weight,
+    )[:max_k]
+    hybrid_curve = compute_recall_curve(hybrid_docs, evidence, max_k)
+
+    return {
+        "theme": theme,
+        "question_type": question_type,
+        "semantic_weight": semantic_weight,
+        "bm25_weight": bm25_weight,
+        "testcase_id": row["testcase_id"],
+        "query": query_text,
+        "evidence": evidence,
+        "hybrid_docs": hybrid_docs,
+        "hybrid_curve": hybrid_curve,
+    }
+
+
+def evaluate_rerank_task(task: dict[str, Any]) -> dict[str, Any]:
+    theme = task["theme"]
+    query_text = task["query"]
+    evidence = task["evidence"]
+    hybrid_docs = task["hybrid_docs"]
+    max_k = task["max_k"]
+
+    theme_engine = get_thread_theme_engine(theme)
+    if not hybrid_docs:
+        reranked_docs: list[dict[str, Any]] = []
+    else:
+        pairs = [[query_text, doc["content"]] for doc in hybrid_docs]
+        rerank_scores = theme_engine.reranker.predict(pairs)
+        reranked_docs = []
+        for idx, doc in enumerate(hybrid_docs):
+            reranked_doc = dict(doc)
+            reranked_doc["score"] = float(rerank_scores[idx])
+            reranked_docs.append(reranked_doc)
+        reranked_docs.sort(key=lambda item: item["score"], reverse=True)
+
+    rerank_curve = compute_recall_curve(reranked_docs, evidence, max_k)
+    best_global, config_grid = compute_best_configs(reranked_docs, evidence, max_k)
+
+    return {
+        "theme": theme,
+        "question_type": task["question_type"],
+        "semantic_weight": task["semantic_weight"],
+        "bm25_weight": task["bm25_weight"],
+        "testcase_id": task["testcase_id"],
+        "query": query_text,
+        "evidence": evidence,
+        "hybrid_docs": hybrid_docs,
+        "hybrid_curve": task["hybrid_curve"],
+        "reranked_docs": reranked_docs,
+        "rerank_curve": rerank_curve,
+        "best_global": best_global,
+        "config_grid": config_grid,
+    }
+
+
+def result_key(result: dict[str, Any]) -> tuple[str, str, str, float]:
+    return (
+        result["theme"],
+        result["testcase_id"],
+        result["question_type"],
+        result["semantic_weight"],
+    )
+
+
 def main() -> int:
     args = parse_args()
     if args.qdrant_host:
@@ -311,6 +486,28 @@ def main() -> int:
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.workers is not None:
+        if args.hybrid_workers is None:
+            args.hybrid_workers = args.workers
+        if args.rerank_workers is None:
+            args.rerank_workers = args.workers
+
+    if args.hybrid_workers is None:
+        args.hybrid_workers = DEFAULT_WORKERS
+    if args.rerank_workers is None:
+        args.rerank_workers = DEFAULT_RERANK_WORKERS
+
+    if is_cuda_device(args.rerank_device) and args.rerank_workers > 1:
+        print(
+            "Warning: CUDA reranking is not safe with threaded workers on Windows. "
+            "Falling back to --rerank-workers 1 to avoid PyTorch/CrossEncoder access violations.",
+            file=sys.stderr,
+        )
+        args.rerank_workers = 1
+
+    if args.rerank_workers > 1:
+        os.environ["RETRIEVER_RERANKER_SCOPE"] = "thread"
 
     normalized_weights = []
     for weight in args.weights[:MAX_PLOT_SERIES]:
@@ -331,121 +528,148 @@ def main() -> int:
                 break
             rows_by_theme[theme].append(normalize_row(row, index=index, forced_theme=theme))
 
-    theme_engines = {theme: make_theme(theme) for theme in sorted(rows_by_theme)}
     per_query_rows: list[dict[str, Any]] = []
     curve_bucket: dict[tuple[str, str, str, float], list[list[float]]] = defaultdict(list)
     best_config_bucket: dict[tuple[str, str, float], list[dict[str, int | float]]] = defaultdict(
         list
     )
     config_grid_rows: list[dict[str, Any]] = []
-
+    tasks: list[dict[str, Any]] = []
     for theme, theme_rows in rows_by_theme.items():
-        theme_engine = theme_engines[theme]
         for row in theme_rows:
-            evidence = row["Evidence"]
             for question_type, field_name in QUESTION_FIELDS.items():
                 query_text = row[field_name]
                 if not query_text:
                     continue
                 for semantic_weight in weights:
-                    bm25_weight = round(1.0 - semantic_weight, 4)
-                    rankings = theme_engine.rank_candidates(
-                        query=query_text,
-                        fetch_k=args.max_k,
-                        semantic_weight=semantic_weight,
-                        bm25_weight=bm25_weight,
-                    )
-                    hybrid_docs = rankings["hybrid_docs"]
-                    reranked_docs = rankings["reranked_docs"]
-                    hybrid_curve = compute_recall_curve(hybrid_docs, evidence, args.max_k)
-                    rerank_curve = compute_recall_curve(reranked_docs, evidence, args.max_k)
-                    best_global, config_grid = compute_best_configs(
-                        reranked_docs, evidence, args.max_k
-                    )
-
-                    key_base = (theme, question_type, semantic_weight)
-                    curve_bucket[(theme, question_type, "hybrid", semantic_weight)].append(
-                        hybrid_curve
-                    )
-                    curve_bucket[(theme, question_type, "rerank", semantic_weight)].append(
-                        rerank_curve
-                    )
-                    curve_bucket[("overall", question_type, "hybrid", semantic_weight)].append(
-                        hybrid_curve
-                    )
-                    curve_bucket[("overall", question_type, "rerank", semantic_weight)].append(
-                        rerank_curve
-                    )
-
-                    best_config_bucket[key_base].append(
-                        {
-                            "retrieval_k": int(best_global["retrieval_k"]),
-                            "rerank_top_k": int(best_global["rerank_top_k"]),
-                            "recall": float(best_global["recall"]),
-                        }
-                    )
-
-                    for item in config_grid:
-                        config_grid_rows.append(
-                            {
-                                "theme": theme,
-                                "question_type": question_type,
-                                "testcase_id": row["testcase_id"],
-                                "semantic_weight": semantic_weight,
-                                "bm25_weight": bm25_weight,
-                                "retrieval_k": item["retrieval_k"],
-                                "rerank_top_k": item["rerank_top_k"],
-                                "recall": round(float(item["recall"]), 6),
-                            }
-                        )
-
-                    per_query_rows.append(
+                    tasks.append(
                         {
                             "theme": theme,
+                            "row": row,
                             "question_type": question_type,
-                            "testcase_id": row["testcase_id"],
+                            "query_text": query_text,
                             "semantic_weight": semantic_weight,
-                            "bm25_weight": bm25_weight,
-                            "query": query_text,
-                            "evidence": evidence,
-                            "hybrid_recall_at_1": round(recall_at(hybrid_curve, 1), 6),
-                            "hybrid_recall_at_5": round(recall_at(hybrid_curve, 5), 6),
-                            "hybrid_recall_at_10": round(recall_at(hybrid_curve, 10), 6),
-                            "hybrid_recall_at_20": round(recall_at(hybrid_curve, 20), 6),
-                            "hybrid_recall_at_50": round(recall_at(hybrid_curve, 50), 6),
-                            "hybrid_recall_at_100": round(recall_at(hybrid_curve, 100), 6),
-                            "rerank_recall_at_1": round(recall_at(rerank_curve, 1), 6),
-                            "rerank_recall_at_5": round(recall_at(rerank_curve, 5), 6),
-                            "rerank_recall_at_10": round(recall_at(rerank_curve, 10), 6),
-                            "rerank_recall_at_20": round(recall_at(rerank_curve, 20), 6),
-                            "rerank_recall_at_50": round(recall_at(rerank_curve, 50), 6),
-                            "rerank_recall_at_100": round(recall_at(rerank_curve, 100), 6),
-                            "best_retrieval_k": int(best_global["retrieval_k"]),
-                            "best_rerank_top_k": int(best_global["rerank_top_k"]),
-                            "best_rerank_recall": round(float(best_global["recall"]), 6),
-                            "hybrid_top_100": json.dumps(
-                                [
-                                    {
-                                        "content": item.get("content", ""),
-                                        "metadata": item.get("metadata", {}),
-                                    }
-                                    for item in hybrid_docs
-                                ],
-                                ensure_ascii=False,
-                            ),
-                            "rerank_top_100": json.dumps(
-                                [
-                                    {
-                                        "content": item.get("content", ""),
-                                        "metadata": item.get("metadata", {}),
-                                        "score": round(float(item.get("score", 0.0)), 6),
-                                    }
-                                    for item in reranked_docs
-                                ],
-                                ensure_ascii=False,
-                            ),
+                            "max_k": args.max_k,
                         }
                     )
+
+    hybrid_results = run_parallel_tasks(
+        tasks=tasks,
+        worker_count=args.hybrid_workers,
+        description="Evaluating hybrid retrieval",
+        evaluator=evaluate_hybrid_task,
+    )
+
+    rerank_inputs = []
+    for result in hybrid_results:
+        theme = result["theme"]
+        question_type = result["question_type"]
+        semantic_weight = result["semantic_weight"]
+        hybrid_curve = result["hybrid_curve"]
+        curve_bucket[(theme, question_type, "hybrid", semantic_weight)].append(hybrid_curve)
+        curve_bucket[("overall", question_type, "hybrid", semantic_weight)].append(hybrid_curve)
+        rerank_inputs.append(
+            {
+                **result,
+                "max_k": args.max_k,
+            }
+        )
+
+    rerank_results = run_parallel_tasks(
+        tasks=rerank_inputs,
+        worker_count=args.rerank_workers,
+        description="Evaluating rerank",
+        evaluator=evaluate_rerank_task,
+    )
+
+    for result in rerank_results:
+        theme = result["theme"]
+        question_type = result["question_type"]
+        semantic_weight = result["semantic_weight"]
+        bm25_weight = result["bm25_weight"]
+        rerank_curve = result["rerank_curve"]
+        best_global = result["best_global"]
+        config_grid = result["config_grid"]
+        testcase_id = result["testcase_id"]
+        query_text = result["query"]
+        evidence = result["evidence"]
+        hybrid_docs = result["hybrid_docs"]
+        hybrid_curve = result["hybrid_curve"]
+        reranked_docs = result["reranked_docs"]
+
+        key_base = (theme, question_type, semantic_weight)
+        curve_bucket[(theme, question_type, "rerank", semantic_weight)].append(rerank_curve)
+        curve_bucket[("overall", question_type, "rerank", semantic_weight)].append(rerank_curve)
+
+        best_config_bucket[key_base].append(
+            {
+                "retrieval_k": int(best_global["retrieval_k"]),
+                "rerank_top_k": int(best_global["rerank_top_k"]),
+                "recall": float(best_global["recall"]),
+            }
+        )
+
+        for item in config_grid:
+            config_grid_rows.append(
+                {
+                    "theme": theme,
+                    "question_type": question_type,
+                    "testcase_id": testcase_id,
+                    "semantic_weight": semantic_weight,
+                    "bm25_weight": bm25_weight,
+                    "retrieval_k": item["retrieval_k"],
+                    "rerank_top_k": item["rerank_top_k"],
+                    "recall": round(float(item["recall"]), 6),
+                }
+            )
+
+        per_query_rows.append(
+            {
+                "theme": theme,
+                "question_type": question_type,
+                "testcase_id": testcase_id,
+                "semantic_weight": semantic_weight,
+                "bm25_weight": bm25_weight,
+                "query": query_text,
+                "evidence": evidence,
+                "hybrid_recall_at_1": round(recall_at(hybrid_curve, 1), 6),
+                "hybrid_recall_at_5": round(recall_at(hybrid_curve, 5), 6),
+                "hybrid_recall_at_10": round(recall_at(hybrid_curve, 10), 6),
+                "hybrid_recall_at_20": round(recall_at(hybrid_curve, 20), 6),
+                "hybrid_recall_at_50": round(recall_at(hybrid_curve, 50), 6),
+                "hybrid_recall_at_100": round(recall_at(hybrid_curve, 100), 6),
+                "rerank_recall_at_1": round(recall_at(rerank_curve, 1), 6),
+                "rerank_recall_at_5": round(recall_at(rerank_curve, 5), 6),
+                "rerank_recall_at_10": round(recall_at(rerank_curve, 10), 6),
+                "rerank_recall_at_20": round(recall_at(rerank_curve, 20), 6),
+                "rerank_recall_at_50": round(recall_at(rerank_curve, 50), 6),
+                "rerank_recall_at_100": round(recall_at(rerank_curve, 100), 6),
+                "best_retrieval_k": int(best_global["retrieval_k"]),
+                "best_rerank_top_k": int(best_global["rerank_top_k"]),
+                "best_rerank_recall": round(float(best_global["recall"]), 6),
+                "hybrid_top_100": json.dumps(
+                    [
+                        {
+                            "content": item.get("content", ""),
+                            "metadata": item.get("metadata", {}),
+                        }
+                        for item in hybrid_docs
+                    ],
+                    ensure_ascii=False,
+                ),
+                "rerank_top_100": json.dumps(
+                    [
+                        {
+                            "content": item.get("content", ""),
+                            "metadata": item.get("metadata", {}),
+                            "score": round(float(item.get("score", 0.0)), 6),
+                        }
+                        for item in reranked_docs
+                    ],
+                    ensure_ascii=False,
+                ),
+            }
+        )
 
     summary_rows: list[dict[str, Any]] = []
     plot_rows: list[dict[str, Any]] = []
