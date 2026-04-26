@@ -50,4 +50,12 @@ class PostgresTicketStore:
                 cur.execute(query, {"ticket_code": normalized_code})
                 rows = cur.fetchall()
 
-        return [dict(row) for row in rows]
+        return [
+            {
+                **row,
+                "updated_date": row["updated_date"].isoformat()
+                    if row.get("updated_date")
+                    else None,
+            }
+            for row in rows
+        ]
