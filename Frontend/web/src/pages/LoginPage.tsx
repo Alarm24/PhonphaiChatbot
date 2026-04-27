@@ -10,15 +10,25 @@ export function LoginPage() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!username.trim() || !password.trim()) {
       setError('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน')
       return
     }
-    login(username.trim())
-    navigate('/')
+    setSubmitting(true)
+    setError('')
+    try {
+      await login(username.trim(), password)
+      navigate('/')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'เข้าสู่ระบบไม่สำเร็จ'
+      setError(message)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -33,6 +43,7 @@ export function LoginPage() {
               onChange={(e) => { setUsername(e.target.value); setError('') }}
               placeholder="กรอกชื่อผู้ใช้"
               autoComplete="username"
+              disabled={submitting}
             />
           </div>
 
@@ -44,6 +55,7 @@ export function LoginPage() {
               onChange={(e) => { setPassword(e.target.value); setError('') }}
               placeholder="กรอกรหัสผ่าน"
               autoComplete="current-password"
+              disabled={submitting}
             />
           </div>
 
@@ -51,9 +63,10 @@ export function LoginPage() {
 
           <Button
             type="submit"
+            disabled={submitting}
             className="w-full bg-[#D32F2F] hover:bg-red-700 text-white mt-2"
           >
-            เข้าสู่ระบบ
+            {submitting ? 'กำลังเข้าสู่ระบบ...' : 'เข้าสู่ระบบ'}
           </Button>
 
           <div className="text-center">

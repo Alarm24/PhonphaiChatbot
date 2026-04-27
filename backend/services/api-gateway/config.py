@@ -12,6 +12,24 @@ class Settings(BaseSettings):
     RETRIEVER_HOST: str = "retriever:50051"
     AGENT_HOST: str = "agent:50052"
 
+    # MongoDB (shared rag_db, separate `users` collection)
+    MONGO_URI: str = "mongodb://mongo:27017"
+    MONGO_DB: str = "rag_db"
+
+    # Auth
+    JWT_SECRET: str = "change-me-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRES_HOURS: int = 24 * 7  # 1 week
+
+    # Bootstrap admin (seeded on startup if no admin exists)
+    INITIAL_ADMIN_USERNAME: str = ""
+    INITIAL_ADMIN_PASSWORD: str = ""
+
+    # Bootstrap regular user (seeded on startup if username doesn't exist)
+    INITIAL_USER_USERNAME: str = ""
+    INITIAL_USER_PASSWORD: str = ""
+    INITIAL_USER_STAFF_ID: int = 0  # 0 = unset / skip seeding
+
     class Config:
         env_file = ".env"
 

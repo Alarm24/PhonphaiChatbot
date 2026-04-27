@@ -122,12 +122,24 @@ services:
       - AGENT_HOST=agent:50052
       - RETRIEVER_HOST=retriever:50051
       - ANONYMIZED_TELEMETRY=False
-    restart: unless-stopped      
+      - MONGO_URI=mongodb://mongo:27017
+      - MONGO_DB=rag_db
+      - JWT_SECRET=${JWT_SECRET:-please-change-me}
+      - JWT_ALGORITHM=HS256
+      - JWT_EXPIRES_HOURS=168
+      - INITIAL_ADMIN_USERNAME=${INITIAL_ADMIN_USERNAME:-admin}
+      - INITIAL_ADMIN_PASSWORD=${INITIAL_ADMIN_PASSWORD:-a1234567}
+      - INITIAL_USER_USERNAME=${INITIAL_USER_USERNAME:-user}
+      - INITIAL_USER_PASSWORD=${INITIAL_USER_PASSWORD:-a1234567}
+      - INITIAL_USER_STAFF_ID=${INITIAL_USER_STAFF_ID:-13266}
+    restart: unless-stopped
     depends_on:
       retriever:
         condition: service_healthy
       agent:
         condition: service_healthy
+      mongo:
+        condition: service_started
     networks:
       - rag_net
 

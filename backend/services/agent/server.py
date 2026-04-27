@@ -3,9 +3,20 @@ import json
 
 import chatbot_pb2
 import chatbot_pb2_grpc
+from core.auth_context import RequestAuth, set_current_auth
 from core.graph import app as langgraph_app
 from langchain_core.messages import HumanMessage
 from logger import log
+
+
+def _auth_from_request(request) -> RequestAuth:
+    """Extract auth context from a gRPC ChatRequest. Empty role == anonymous."""
+    raw_staff_id = getattr(request, "staff_id", 0) or 0
+    return RequestAuth(
+        role=getattr(request, "user_role", "") or "",
+        staff_id=int(raw_staff_id) if raw_staff_id else None,
+        username=getattr(request, "username", "") or "",
+    )
 
 
 def _format_ticket_lookup_message(ticket_lookups: list[dict]) -> str:
@@ -77,7 +88,13 @@ def _build_sources(final_state: dict) -> tuple[list, str | None]:
 
 class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
     async def Chat(self, request, context):
-        log.info(f"🧠 Processing query: {request.user_message} (Session: {request.session_id})")
+        log.info(
+            f"🧠 Processing query: {request.user_message} "
+            f"(Session: {request.session_id}, "
+            f"User: {request.username or 'anonymous'} role={request.user_role or '-'})"
+        )
+
+        set_current_auth(_auth_from_request(request))
 
         initial_state = {"messages": [HumanMessage(content=request.user_message)]}
         final_state = await langgraph_app.ainvoke(initial_state)
@@ -100,8 +117,12 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
 
     async def ChatStream(self, request, context):
         log.info(
-            f"🧠 [Stream] Processing query: {request.user_message} (Session: {request.session_id})"
+            f"🧠 [Stream] Processing query: {request.user_message} "
+            f"(Session: {request.session_id}, "
+            f"User: {request.username or 'anonymous'} role={request.user_role or '-'})"
         )
+
+        set_current_auth(_auth_from_request(request))
 
         initial_state = {"messages": [HumanMessage(content=request.user_message)]}
 

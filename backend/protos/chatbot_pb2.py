@@ -24,7 +24,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rchatbot.proto\x12\x05\x61gent\"7\n\x0b\x43hatRequest\x12\x12\n\nsession_id\x18\x01 \x01(\t\x12\x14\n\x0cuser_message\x18\x02 \x01(\t\"d\n\x0c\x43hatResponse\x12\x12\n\nsession_id\x18\x01 \x01(\t\x12\x12\n\nai_message\x18\x02 \x01(\t\x12\x1e\n\x07sources\x18\x03 \x03(\x0b\x32\r.agent.Source\x12\x0c\n\x04\x63ost\x18\x04 \x01(\x01\"7\n\x06Source\x12\r\n\x05title\x18\x01 \x01(\t\x12\r\n\x05theme\x18\x02 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"\x81\x01\n\x0f\x43hatStreamChunk\x12\x12\n\nsession_id\x18\x01 \x01(\t\x12\x0f\n\x05token\x18\x02 \x01(\tH\x00\x12-\n\x0e\x66inal_response\x18\x03 \x01(\x0b\x32\x13.agent.ChatResponseH\x00\x12\x0f\n\x05\x65rror\x18\x04 \x01(\tH\x00\x42\t\n\x07payload2{\n\x0c\x41gentService\x12/\n\x04\x43hat\x12\x12.agent.ChatRequest\x1a\x13.agent.ChatResponse\x12:\n\nChatStream\x12\x12.agent.ChatRequest\x1a\x16.agent.ChatStreamChunk0\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rchatbot.proto\x12\x05\x61gent\"n\n\x0b\x43hatRequest\x12\x12\n\nsession_id\x18\x01 \x01(\t\x12\x14\n\x0cuser_message\x18\x02 \x01(\t\x12\x11\n\tuser_role\x18\x03 \x01(\t\x12\x10\n\x08staff_id\x18\x04 \x01(\x05\x12\x10\n\x08username\x18\x05 \x01(\t\"d\n\x0c\x43hatResponse\x12\x12\n\nsession_id\x18\x01 \x01(\t\x12\x12\n\nai_message\x18\x02 \x01(\t\x12\x1e\n\x07sources\x18\x03 \x03(\x0b\x32\r.agent.Source\x12\x0c\n\x04\x63ost\x18\x04 \x01(\x01\"7\n\x06Source\x12\r\n\x05title\x18\x01 \x01(\t\x12\r\n\x05theme\x18\x02 \x01(\t\x12\x0f\n\x07\x63ontent\x18\x03 \x01(\t\"\x81\x01\n\x0f\x43hatStreamChunk\x12\x12\n\nsession_id\x18\x01 \x01(\t\x12\x0f\n\x05token\x18\x02 \x01(\tH\x00\x12-\n\x0e\x66inal_response\x18\x03 \x01(\x0b\x32\x13.agent.ChatResponseH\x00\x12\x0f\n\x05\x65rror\x18\x04 \x01(\tH\x00\x42\t\n\x07payload2{\n\x0c\x41gentService\x12/\n\x04\x43hat\x12\x12.agent.ChatRequest\x1a\x13.agent.ChatResponse\x12:\n\nChatStream\x12\x12.agent.ChatRequest\x1a\x16.agent.ChatStreamChunk0\x01\x62\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -32,13 +32,13 @@ _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'chatbot_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
   DESCRIPTOR._loaded_options = None
   _globals['_CHATREQUEST']._serialized_start=24
-  _globals['_CHATREQUEST']._serialized_end=79
-  _globals['_CHATRESPONSE']._serialized_start=81
-  _globals['_CHATRESPONSE']._serialized_end=181
-  _globals['_SOURCE']._serialized_start=183
-  _globals['_SOURCE']._serialized_end=238
-  _globals['_CHATSTREAMCHUNK']._serialized_start=241
-  _globals['_CHATSTREAMCHUNK']._serialized_end=370
-  _globals['_AGENTSERVICE']._serialized_start=372
-  _globals['_AGENTSERVICE']._serialized_end=495
+  _globals['_CHATREQUEST']._serialized_end=134
+  _globals['_CHATRESPONSE']._serialized_start=136
+  _globals['_CHATRESPONSE']._serialized_end=236
+  _globals['_SOURCE']._serialized_start=238
+  _globals['_SOURCE']._serialized_end=293
+  _globals['_CHATSTREAMCHUNK']._serialized_start=296
+  _globals['_CHATSTREAMCHUNK']._serialized_end=425
+  _globals['_AGENTSERVICE']._serialized_start=427
+  _globals['_AGENTSERVICE']._serialized_end=550
 # @@protoc_insertion_point(module_scope)

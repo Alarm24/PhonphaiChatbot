@@ -1,6 +1,43 @@
-import type { ChatApiResponse } from '../types'
+import type { AuthUser, ChatApiResponse } from '../types'
 
 const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
+
+const STORAGE_KEY_TOKEN = 'phonphai_token'
+
+function getToken(): string | null {
+  return localStorage.getItem(STORAGE_KEY_TOKEN)
+}
+
+function authHeaders(): Record<string, string> {
+  const token = getToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+export interface LoginResponse {
+  token: string
+  user: AuthUser
+}
+
+export async function loginRequest(username: string, password: string): Promise<LoginResponse> {
+  const res = await fetch(`${API_URL}/api/v1/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({ detail: res.statusText }))
+    throw new Error(detail.detail || 'Login failed')
+  }
+  return res.json() as Promise<LoginResponse>
+}
+
+export async function fetchMe(): Promise<AuthUser> {
+  const res = await fetch(`${API_URL}/api/v1/auth/me`, {
+    headers: { ...authHeaders() },
+  })
+  if (!res.ok) throw new Error('Not authenticated')
+  return res.json() as Promise<AuthUser>
+}
 
 export async function sendMessage(
   sessionId: string,
@@ -8,7 +45,7 @@ export async function sendMessage(
 ): Promise<ChatApiResponse> {
   const res = await fetch(`${API_URL}/api/v1/chat/`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({ session_id: sessionId, message }),
   })
   if (!res.ok) {
@@ -26,7 +63,7 @@ export async function sendMessageStream(
 ): Promise<void> {
   const res = await fetch(`${API_URL}/api/v1/chat/stream`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify({ session_id: sessionId, message }),
   })
 

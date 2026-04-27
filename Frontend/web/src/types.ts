@@ -12,3 +12,10 @@ export interface ChatApiResponse {
   response: string
   sources: { title: string; theme: string; content: string }[]
 }
+
+export interface AuthUser {
+  user_id: string
+  username: string
+  role: 'admin' | 'user'
+  staff_id: number | null
+}

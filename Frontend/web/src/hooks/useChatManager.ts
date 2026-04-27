@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import type { Message } from '../types'
-import { sendMessage as apiSendMessage, sendMessageStream } from '../services/api'
+import { sendMessageStream } from '../services/api'
 import { useLanguage } from '../contexts/LanguageContext'
+import { useAuth } from '../contexts/AuthContext'
+import { containsSknCode } from '../utils/skn'
 
 const STORAGE_KEY_SESSION = 'phonphai_session_id'
 const STORAGE_KEY_MESSAGES = 'phonphai_messages'
@@ -43,6 +45,7 @@ function getOrCreateSessionId(): string {
 
 export function useChatManager(greetingText: string) {
   const { t } = useLanguage()
+  const { user } = useAuth()
   const sessionIdRef = useRef<string>(getOrCreateSessionId())
 
   const [messages, setMessages] = useState<Message[]>(() => {
@@ -52,6 +55,7 @@ export function useChatManager(greetingText: string) {
 
   const [inputValue, setInputValue] = useState('')
   const [isThinking, setIsThinking] = useState(false)
+  const [showLoginRequired, setShowLoginRequired] = useState(false)
 
   // When language changes, retranslate the greeting if no conversation has started yet
   useEffect(() => {
@@ -69,8 +73,17 @@ export function useChatManager(greetingText: string) {
     localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(toStore))
   }, [messages])
 
+  const dismissLoginRequired = useCallback(() => setShowLoginRequired(false), [])
+
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isThinking) return
+
+    // Anonymous users can chat freely, but ticket queries require login.
+    // The backend re-checks; this just gives instant feedback.
+    if (!user && containsSknCode(text)) {
+      setShowLoginRequired(true)
+      return
+    }
 
     const userMsg: Message = {
       id: uuidv4(),
@@ -170,7 +183,7 @@ export function useChatManager(greetingText: string) {
             )
           },
           // onError
-          (errorMsg) => {
+          (_errorMsg) => {
             const targetId = firstToken ? thinkingId : botMsgId
             setMessages((prev) =>
               prev.map((m) =>
@@ -200,7 +213,7 @@ export function useChatManager(greetingText: string) {
     } finally {
       setIsThinking(false)
     }
-  }, [isThinking])
+  }, [isThinking, user, t])
 
   const clearChat = useCallback((newGreetingText: string) => {
     const newId = uuidv4()
@@ -218,5 +231,8 @@ export function useChatManager(greetingText: string) {
     isThinking,
     sendMessage,
     clearChat,
+    showLoginRequired,
+    dismissLoginRequired,
   }
 }
+

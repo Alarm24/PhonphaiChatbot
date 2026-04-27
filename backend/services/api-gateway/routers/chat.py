@@ -1,13 +1,18 @@
 import json
+import re
 from typing import List
 
 import chatbot_pb2
-from fastapi import APIRouter, HTTPException
+from auth.dependencies import CurrentUser, get_optional_user
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from state import gRPCState
 
 router = APIRouter()
+
+# Matches Remedy ticket codes such as SKN-2567-0006 (case-insensitive, dashes optional/loose).
+SKN_PATTERN = re.compile(r"\bSKN[-\s]?\d{4}[-\s]?\d{4}\b", re.IGNORECASE)
 
 
 # --- Pydantic Models ---
@@ -29,17 +34,38 @@ class ChatResponse(BaseModel):
     cost: float = 0.0
 
 
-# --- Endpoints ---
-@router.post("/", response_model=ChatResponse)
-async def chat_with_agent(request: ChatRequest):
-    try:
-        client = gRPCState.agent_client
+def _build_grpc_request(req: ChatRequest, user: CurrentUser | None) -> chatbot_pb2.ChatRequest:
+    """Embed auth context into the gRPC ChatRequest. Anonymous users get blank role/staff_id."""
+    return chatbot_pb2.ChatRequest(
+        session_id=req.session_id,
+        user_message=req.message,
+        user_role=user.role if user else "",
+        staff_id=user.staff_id if (user and user.staff_id is not None) else 0,
+        username=user.username if user else "",
+    )
 
-        grpc_request = chatbot_pb2.ChatRequest(
-            session_id=request.session_id, user_message=request.message
+
+def _enforce_skn_login(message: str, user: CurrentUser | None) -> None:
+    """Reject SKN ticket queries from anonymous users — frontend modal is just UX, this is the gate."""
+    if user is not None:
+        return
+    if SKN_PATTERN.search(message):
+        raise HTTPException(
+            status_code=401,
+            detail="Login required to query Remedy tickets (SKN-XXXX-XXXX).",
         )
 
-        grpc_response = await client.Chat(grpc_request)
+
+# --- Endpoints ---
+@router.post("/", response_model=ChatResponse)
+async def chat_with_agent(
+    request: ChatRequest,
+    user: CurrentUser | None = Depends(get_optional_user),
+):
+    _enforce_skn_login(request.message, user)
+    try:
+        client = gRPCState.agent_client
+        grpc_response = await client.Chat(_build_grpc_request(request, user))
 
         sources = [
             SourceModel(title=s.title, theme=s.theme, content=s.content)
@@ -52,16 +78,21 @@ async def chat_with_agent(request: ChatRequest):
             sources=sources,
             cost=grpc_response.cost,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @router.post("/stream")
-async def chat_stream(request: ChatRequest):
+async def chat_stream(
+    request: ChatRequest,
+    user: CurrentUser | None = Depends(get_optional_user),
+):
+    _enforce_skn_login(request.message, user)
+
     client = gRPCState.agent_client
-    grpc_request = chatbot_pb2.ChatRequest(
-        session_id=request.session_id, user_message=request.message
-    )
+    grpc_request = _build_grpc_request(request, user)
 
     async def event_generator():
         try:

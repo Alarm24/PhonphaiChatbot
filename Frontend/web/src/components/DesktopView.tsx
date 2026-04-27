@@ -146,7 +146,12 @@ export function DesktopView({
                 </Button>
                 {user ? (
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-gray-700">{user}</span>
+                    <span className="text-sm text-gray-700">{user.username}</span>
+                    {user.role === 'admin' && (
+                      <span className="rounded bg-[#D32F2F] px-1.5 py-0.5 text-[10px] font-semibold uppercase text-white">
+                        admin
+                      </span>
+                    )}
                     <Button
                       variant="ghost"
                       size="icon"

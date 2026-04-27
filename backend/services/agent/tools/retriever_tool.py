@@ -50,13 +50,38 @@ async def _execute_search(query: str, theme_enum, theme_name: str) -> tuple[str,
 
 async def _execute_ticket_lookup(ticket_code: str) -> tuple[str, list]:
     """Look up structured Remedy ticket data without passing rows back into the LLM."""
+    from core.auth_context import get_current_auth
+
     normalized_code = ticket_code.strip().upper()
     if not normalized_code:
         return "Ticket lookup skipped because no ticket code was provided.", []
 
+    auth = get_current_auth()
+
+    # Anonymous users must not reach this tool (api-gateway also blocks SKN
+    # patterns), but enforce server-side as defense-in-depth.
+    if auth.is_anonymous:
+        return (
+            "Ticket lookup denied: the user is not logged in. Please ask them to log in.",
+            [],
+        )
+
+    # Admins query without filter; regular users may only see their own tickets.
+    staff_filter = None if auth.is_admin else auth.staff_id
+    if not auth.is_admin and staff_filter is None:
+        return (
+            "Ticket lookup denied: this account has no staff_id assigned, "
+            "so it cannot be linked to any ticket. Ask an administrator to set one.",
+            [],
+        )
+
     try:
         ticket_store = AgentState.ticket_store
-        rows = await asyncio.to_thread(ticket_store.find_ticket_by_code, normalized_code)
+        rows = await asyncio.to_thread(
+            ticket_store.find_ticket_by_code,
+            normalized_code,
+            staff_filter,
+        )
         artifact = [
             {
                 "source_type": "ticket_lookup",
