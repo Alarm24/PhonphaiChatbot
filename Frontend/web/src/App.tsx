@@ -4,13 +4,22 @@ import { useChatManager } from './hooks/useChatManager'
 import { useLanguage } from './contexts/LanguageContext'
 import { MobileView } from './components/MobileView'
 import { DesktopView } from './components/DesktopView'
+import { LoginRequiredModal } from './components/LoginRequiredModal'
 import { LoginPage } from './pages/LoginPage'
 
 function ChatPage() {
   const isMobile = useMediaQuery('(max-width: 768px)')
   const { t } = useLanguage()
-  const { messages, inputValue, setInputValue, isThinking, sendMessage, clearChat } =
-    useChatManager(t('greeting'))
+  const {
+    messages,
+    inputValue,
+    setInputValue,
+    isThinking,
+    sendMessage,
+    clearChat,
+    showLoginRequired,
+    dismissLoginRequired,
+  } = useChatManager(t('greeting'))
 
   const sharedProps = {
     messages,
@@ -25,6 +34,7 @@ function ChatPage() {
   return (
     <div className="h-screen overflow-hidden">
       {isMobile ? <MobileView {...sharedProps} /> : <DesktopView {...sharedProps} />}
+      <LoginRequiredModal open={showLoginRequired} onClose={dismissLoginRequired} />
     </div>
   )
 }

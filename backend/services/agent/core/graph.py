@@ -52,9 +52,10 @@ model = ChatOpenAI(
     openai_api_base="https://openrouter.ai/api/v1",
     openai_api_key=settings.OPENROUTER_API_KEY,
     temperature=0,
+    streaming=True,
 )
 
-model_with_tools = model.bind_tools(TOOLS_LIST + [CitedResponse]).with_config(
+model_with_tools = model.bind_tools(TOOLS_LIST).with_config(
     {"metadata": {"ls_provider": "openrouter", "ls_model_name": "google/gemini-2.5-flash"}}
 )
 
@@ -117,7 +118,7 @@ def extract_usage_metadata(message: AIMessage | ToolMessage | SystemMessage | ob
     return usage_metadata
 
 
-def agent_node(state: AgentState):
+async def agent_node(state: AgentState):
     """The Brain Node: Decides what to do next."""
 
     current_messages = list(state["messages"])
@@ -141,7 +142,7 @@ def agent_node(state: AgentState):
 
     messages = [SystemMessage(content=SYSTEM_PROMPT)] + current_messages
 
-    response = model_with_tools.invoke(messages)
+    response = await model_with_tools.ainvoke(messages)
     response_cost = extract_cost(response)
 
     selected_tools = [

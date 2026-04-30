@@ -4,11 +4,15 @@ package agent;
 
 service AgentService {
   rpc Chat (ChatRequest) returns (ChatResponse);
+  rpc ChatStream (ChatRequest) returns (stream ChatStreamChunk);
 }
 
 message ChatRequest {
   string session_id = 1;
   string user_message = 2;
+  string user_role = 3;
+  int32 staff_id = 4;
+  string username = 5;
 }
 
 message ChatResponse {
@@ -22,4 +26,13 @@ message Source {
   string title = 1;
   string theme = 2;
   string content = 3;
+}
+
+message ChatStreamChunk {
+  string session_id = 1;
+  oneof payload {
+    string token = 2;
+    ChatResponse final_response = 3;
+    string error = 4;
+  }
 }

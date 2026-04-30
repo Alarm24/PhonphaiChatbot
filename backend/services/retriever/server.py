@@ -130,7 +130,7 @@ class RetrieverServicer(retriever_pb2_grpc.RetrieverServiceServicer):
             # 1. Delete from MongoDB
             self.mongo.delete_file(request.file_id)
 
-            # 2. Delete from ChromaDB vector store
+            # 2. Delete from the vector store
             theme_key = request.theme.lower()
 
             theme_map = {

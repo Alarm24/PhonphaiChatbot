@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import type { Message } from '../types'
-import { sendMessage as apiSendMessage } from '../services/api'
+import { sendMessageStream } from '../services/api'
 import { useLanguage } from '../contexts/LanguageContext'
+import { useAuth } from '../contexts/AuthContext'
+import { containsSknCode } from '../utils/skn'
 
 const STORAGE_KEY_SESSION = 'phonphai_session_id'
 const STORAGE_KEY_MESSAGES = 'phonphai_messages'
@@ -43,6 +45,7 @@ function getOrCreateSessionId(): string {
 
 export function useChatManager(greetingText: string) {
   const { t } = useLanguage()
+  const { user } = useAuth()
   const sessionIdRef = useRef<string>(getOrCreateSessionId())
 
   const [messages, setMessages] = useState<Message[]>(() => {
@@ -52,6 +55,7 @@ export function useChatManager(greetingText: string) {
 
   const [inputValue, setInputValue] = useState('')
   const [isThinking, setIsThinking] = useState(false)
+  const [showLoginRequired, setShowLoginRequired] = useState(false)
 
   // When language changes, retranslate the greeting if no conversation has started yet
   useEffect(() => {
@@ -65,12 +69,21 @@ export function useChatManager(greetingText: string) {
 
   // Persist messages to localStorage (skip thinking bubbles)
   useEffect(() => {
-    const toStore = messages.filter((m) => !m.isThinking)
+    const toStore = messages.filter((m) => !m.isThinking && !m.isStreaming)
     localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(toStore))
   }, [messages])
 
+  const dismissLoginRequired = useCallback(() => setShowLoginRequired(false), [])
+
   const sendMessage = useCallback(async (text: string) => {
     if (!text.trim() || isThinking) return
+
+    // Anonymous users can chat freely, but ticket queries require login.
+    // The backend re-checks; this just gives instant feedback.
+    if (!user && containsSknCode(text)) {
+      setShowLoginRequired(true)
+      return
+    }
 
     const userMsg: Message = {
       id: uuidv4(),
@@ -93,26 +106,100 @@ export function useChatManager(greetingText: string) {
     setIsThinking(true)
 
     try {
-      let data
       if (MOCK_DELAY_MS > 0) {
+        // Simulate streaming with a mock response
+        const mockText =
+          '[Mock] สวัสดีครับ นี่คือข้อความทดสอบจากระบบ Phonphai Chatbot ที่แสดงผลแบบ streaming ทีละคำ เพื่อให้ผู้ใช้เห็นข้อความปรากฏขึ้นอย่างต่อเนื่อง'
+        const words = mockText.split(' ')
+        const botMsgId = uuidv4()
+
+        // Show thinking for a bit first
         await new Promise((r) => setTimeout(r, MOCK_DELAY_MS))
-        data = {
-          session_id: sessionIdRef.current,
-          response: '[Mock] This is a test response from Phonphai.',
-          sources: [],
+
+        // Replace thinking with empty streaming message
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === thinkingId
+              ? { id: botMsgId, text: '', sender: 'bot' as const, timestamp: new Date(), isStreaming: true }
+              : m,
+          ),
+        )
+
+        // Stream words one by one
+        for (let i = 0; i < words.length; i++) {
+          await new Promise((r) => setTimeout(r, 60))
+          const token = i === 0 ? words[i] : ' ' + words[i]
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === botMsgId ? { ...m, text: m.text + token } : m,
+            ),
+          )
         }
+
+        // Finalize
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === botMsgId ? { ...m, isStreaming: false } : m,
+          ),
+        )
       } else {
-        data = await apiSendMessage(sessionIdRef.current, text.trim())
+        const botMsgId = uuidv4()
+        let firstToken = true
+
+        await sendMessageStream(
+          sessionIdRef.current,
+          text.trim(),
+          // onToken
+          (token) => {
+            if (firstToken) {
+              // Replace thinking bubble with streaming message
+              firstToken = false
+              const streamMsg: Message = {
+                id: botMsgId,
+                text: token,
+                sender: 'bot',
+                timestamp: new Date(),
+                isStreaming: true,
+              }
+              setMessages((prev) =>
+                prev.map((m) => (m.id === thinkingId ? streamMsg : m)),
+              )
+            } else {
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === botMsgId ? { ...m, text: m.text + token } : m,
+                ),
+              )
+            }
+          },
+          // onDone
+          (data) => {
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === botMsgId
+                  ? { ...m, text: data.response, isStreaming: false }
+                  : m,
+              ),
+            )
+          },
+          // onError
+          (_errorMsg) => {
+            const targetId = firstToken ? thinkingId : botMsgId
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === targetId
+                  ? {
+                      id: uuidv4(),
+                      text: t('errorMessage'),
+                      sender: 'bot' as const,
+                      timestamp: new Date(),
+                    }
+                  : m,
+              ),
+            )
+          },
+        )
       }
-      const botMsg: Message = {
-        id: uuidv4(),
-        text: data.response,
-        sender: 'bot',
-        timestamp: new Date(),
-      }
-      setMessages((prev) =>
-        prev.map((m) => (m.id === thinkingId ? botMsg : m)),
-      )
     } catch {
       const errMsg: Message = {
         id: uuidv4(),
@@ -126,7 +213,7 @@ export function useChatManager(greetingText: string) {
     } finally {
       setIsThinking(false)
     }
-  }, [isThinking])
+  }, [isThinking, user, t])
 
   const clearChat = useCallback((newGreetingText: string) => {
     const newId = uuidv4()
@@ -144,5 +231,8 @@ export function useChatManager(greetingText: string) {
     isThinking,
     sendMessage,
     clearChat,
+    showLoginRequired,
+    dismissLoginRequired,
   }
 }
+

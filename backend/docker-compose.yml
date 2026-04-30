@@ -16,7 +16,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U phonphai -d phonphai"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
     networks:
       - rag_net
 
@@ -27,17 +27,14 @@ services:
     networks:
       - rag_net
 
-  chroma:
-    image: chromadb/chroma:0.5.3
+  qdrant:
+    image: qdrant/qdrant:v1.10.1
     ports:
-      - "8000:8000" #for development, remove in production
+      - "6333:6333"
     volumes:
-      - ./data/chroma_data:/chroma/chroma
+      - ./data/qdrant_data:/qdrant/storage
     networks:
       - rag_net
-    environment:
-      - ANONYMIZED_TELEMETRY=False
-      - CHROMA_SERVER_CORS_ALLOW_ORIGINS=["*"]
 
   # --- Microservices ---
   retriever:
@@ -56,14 +53,15 @@ services:
               capabilities: [gpu]
     environment:
       - MONGO_URI=mongodb://mongo:27017
-      - CHROMA_HOST=chroma
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
       - ANONYMIZED_TELEMETRY=False
       - EMBEDDING_MODEL_NAME=intfloat/multilingual-e5-large
       - RERANK_MODEL_NAME=BAAI/bge-reranker-v2-m3
       - HYBRID_SEMANTIC_WEIGHT=0.6
       - HYBRID_BM25_WEIGHT=0.4
-      - RETRIEVAL_K=15
-      - RERANK_TOP_K=5
+      - RETRIEVAL_K=20
+      - RERANK_TOP_K=10
       - CHUNK_SIZE=1000
       - CHUNK_OVERLAP=200
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
@@ -77,6 +75,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    depends_on:
+      qdrant:
+        condition: service_started
     networks:
       - rag_net
 
@@ -121,12 +122,24 @@ services:
       - AGENT_HOST=agent:50052
       - RETRIEVER_HOST=retriever:50051
       - ANONYMIZED_TELEMETRY=False
-    restart: unless-stopped      
+      - MONGO_URI=mongodb://mongo:27017
+      - MONGO_DB=rag_db
+      - JWT_SECRET=${JWT_SECRET:-please-change-me}
+      - JWT_ALGORITHM=HS256
+      - JWT_EXPIRES_HOURS=168
+      - INITIAL_ADMIN_USERNAME=${INITIAL_ADMIN_USERNAME:-admin}
+      - INITIAL_ADMIN_PASSWORD=${INITIAL_ADMIN_PASSWORD:-a1234567}
+      - INITIAL_USER_USERNAME=${INITIAL_USER_USERNAME:-user}
+      - INITIAL_USER_PASSWORD=${INITIAL_USER_PASSWORD:-a1234567}
+      - INITIAL_USER_STAFF_ID=${INITIAL_USER_STAFF_ID:-13266}
+    restart: unless-stopped
     depends_on:
       retriever:
         condition: service_healthy
       agent:
         condition: service_healthy
+      mongo:
+        condition: service_started
     networks:
       - rag_net
 

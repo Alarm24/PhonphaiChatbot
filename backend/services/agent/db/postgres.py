@@ -21,26 +21,53 @@ class PostgresTicketStore:
                 cur.execute("SELECT 1")
                 cur.fetchone()
 
-    def find_ticket_by_code(self, ticket_code: str) -> list[dict]:
+    def find_ticket_by_code(
+        self,
+        ticket_code: str,
+        staff_id: int | None = None,
+    ) -> list[dict]:
+        """Look up ticket by code. If staff_id is given, only return rows owned by that user."""
         normalized_code = ticket_code.strip().upper()
         if not normalized_code:
             return []
 
-        query = """
-            SELECT DISTINCT
+        params: dict = {"ticket_code": normalized_code}
+        owner_clause = ""
+        if staff_id is not None:
+            owner_clause = 'AND "user" = %(staff_id)s'
+            params["staff_id"] = staff_id
+
+        query = f"""
+            SELECT
                 code,
                 issue_id,
                 "user",
                 status,
-                process_level
+                process_level,
+                updated_date
             FROM issue_logs
             WHERE code = %(ticket_code)s
-            ORDER BY issue_id, "user", status, process_level
+            {owner_clause}
+            ORDER BY
+                updated_date DESC NULLS LAST,
+                issue_id DESC NULLS LAST,
+                "user" DESC NULLS LAST,
+                status,
+                process_level
+            LIMIT 1
         """
 
         with connect(self._conninfo, row_factory=dict_row) as conn:
             with conn.cursor() as cur:
-                cur.execute(query, {"ticket_code": normalized_code})
+                cur.execute(query, params)
                 rows = cur.fetchall()
 
-        return [dict(row) for row in rows]
+        return [
+            {
+                **row,
+                "updated_date": row["updated_date"].isoformat()
+                    if row.get("updated_date")
+                    else None,
+            }
+            for row in rows
+        ]

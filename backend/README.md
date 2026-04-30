@@ -4,8 +4,7 @@ Python-based microservices that power retrieval-augmented responses for the Phon
 
 ## Service layout
 - `mongo`: document store for chat history and metadata.
-- `chroma`: vector store; persisted in `data/chroma_data`.
-- `chroma-ui`: community Chroma admin panel on port `3001`.
+- `qdrant`: vector store; persisted in `data/qdrant_data`.
 - `services/retriever`: fetches and re-ranks context; exposes gRPC on port `50051`.
 - `services/agent`: orchestrates model calls; depends on `retriever`; gRPC on port `50052`.
 - `services/api-gateway`: public HTTP API on `http://localhost:8080`.
@@ -26,7 +25,6 @@ Python-based microservices that power retrieval-augmented responses for the Phon
    docker compose up -d
    ```
    - API Gateway: http://localhost:8080
-   - Chroma UI:   http://localhost:3001
 3) View logs or stop:
    ```bash
    docker compose logs -f
@@ -51,7 +49,7 @@ Python-based microservices that power retrieval-augmented responses for the Phon
 
 ## Data & persistence
 - Mongo data: `data/mongo_data`
-- Chroma data: `data/chroma_data`
+- Qdrant data: `data/qdrant_data`
 Volumes are bind-mounted locally; they persist across container restarts. Remove directories to reset stored state.
 
 ## Evaluation

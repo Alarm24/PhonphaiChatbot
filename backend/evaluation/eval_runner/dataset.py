@@ -128,6 +128,7 @@ def normalize_row(row: dict[str, Any], index: int, forced_theme: str) -> dict[st
         "theme": forced_theme,
         "Question": normalize_text(row.get("Question")),
         "Human_question": normalize_text(row.get("Human_question")),
+        "format_based": normalize_text(row.get("format_based")).lower(),
         "Ground_truth": normalize_text(row.get("Ground_truth")),
         "Evidence": normalize_text(row.get("Evidence")),
         "Source": normalize_text(row.get("Source")),
@@ -140,5 +141,7 @@ def normalize_row(row: dict[str, Any], index: int, forced_theme: str) -> dict[st
         )
     if not normalized["Ground_truth"]:
         raise ValueError(f"Row {index + 1}: Ground_truth is required.")
+    if normalized["format_based"] not in {"text", "image"}:
+        raise ValueError(f"Row {index + 1}: format_based must be either 'text' or 'image'.")
 
     return normalized

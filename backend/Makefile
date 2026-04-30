@@ -1,6 +1,7 @@
 # Command shims for local development
 COMPOSE ?= docker compose
 SERVICE ?= 
+
 .PHONY: help up down restart logs ps lint format lint-fix
 help:
 	@echo "Available targets:"
