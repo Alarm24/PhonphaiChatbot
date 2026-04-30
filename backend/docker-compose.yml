@@ -73,8 +73,8 @@ services:
     healthcheck:              
       test: ["CMD", "python", "-c", "import socket; socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(('localhost', 50051))"]
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 20s
+      retries: 20
     depends_on:
       qdrant:
         condition: service_started
