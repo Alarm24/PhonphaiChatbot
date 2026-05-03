@@ -1,5 +1,6 @@
 import grpc
 import retriever_pb2
+from auth.dependencies import CurrentUser, require_admin
 from config import Settings, get_settings
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from logger import log
@@ -36,6 +37,7 @@ async def upload_document(
     file: UploadFile = File(...),
     theme: str = Form(..., description="Must be one of: remedy, disaster, manual"),
     settings: Settings = Depends(get_settings),  # Injects config efficiently
+    _admin: CurrentUser = Depends(require_admin),
 ):
     """Uploads a file and streams it to the Retriever microservice."""
     try:
@@ -90,7 +92,7 @@ async def upload_document(
 
 
 @router.get("/")
-async def list_files():
+async def list_files(_admin: CurrentUser = Depends(require_admin)):
     """Get a list of all uploaded files across all themes"""
     try:
         request = retriever_pb2.ListFilesRequest()
@@ -114,7 +116,12 @@ async def list_files():
 
 
 @router.delete("/{file_id}")
-async def delete_file(file_id: str, filename: str, theme: str):
+async def delete_file(
+    file_id: str,
+    filename: str,
+    theme: str,
+    _admin: CurrentUser = Depends(require_admin),
+):
     """Delete a file from both MongoDB and the vector store."""
     try:
         request = retriever_pb2.DeleteFileRequest(file_id=file_id, filename=filename, theme=theme)

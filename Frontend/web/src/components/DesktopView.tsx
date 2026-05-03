@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Home, MessageSquare, Map, User, Trash2, Send, Menu, LogOut, LogIn } from 'lucide-react'
+import { Home, MessageSquare, Map, User, Trash2, Send, Menu, LogOut, LogIn, Database } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Switch } from './ui/switch'
@@ -97,6 +97,19 @@ export function DesktopView({
                   {item.label}
                 </Button>
               ))}
+              {user?.role === 'admin' && (
+                <Button
+                  variant="ghost"
+                  className="w-full justify-start hover:bg-gray-100"
+                  onClick={() => {
+                    setIsSidebarOpen(false)
+                    navigate('/admin/files')
+                  }}
+                >
+                  <Database className="w-4 h-4 mr-3" />
+                  Manage Data
+                </Button>
+              )}
             </nav>
 
             <Separator />

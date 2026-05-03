@@ -6,6 +6,7 @@ import { MobileView } from './components/MobileView'
 import { DesktopView } from './components/DesktopView'
 import { LoginRequiredModal } from './components/LoginRequiredModal'
 import { LoginPage } from './pages/LoginPage'
+import { AdminFilesPage } from './pages/AdminFilesPage'
 
 function ChatPage() {
   const isMobile = useMediaQuery('(max-width: 768px)')
@@ -44,6 +45,7 @@ export default function App() {
     <Routes>
       <Route path="/" element={<ChatPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/admin/files" element={<AdminFilesPage />} />
     </Routes>
   )
 }
