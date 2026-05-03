@@ -21,7 +21,7 @@ services:
       - rag_net
 
   mongo:
-    image: mongo:latest
+    image: mongo:8.2
     volumes:
       - ./data/mongo_data:/data/db
     networks:
