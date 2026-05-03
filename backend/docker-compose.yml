@@ -98,6 +98,7 @@ services:
       - LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
       - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
       - LANGCHAIN_PROJECT=phonphai-agent
+      - MAX_TOOL_CALL_ROUNDS=3
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(('localhost', 50052))"]

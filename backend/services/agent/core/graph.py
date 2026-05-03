@@ -36,6 +36,7 @@ class AgentState(TypedDict):
     ticket_lookup_results: list
     final_sources: list
     selected_tools: Annotated[list[str], add]
+    tool_call_rounds: int
     cost: float
 
 
@@ -122,6 +123,7 @@ async def agent_node(state: AgentState):
     """The Brain Node: Decides what to do next."""
 
     current_messages = list(state["messages"])
+    tool_call_rounds = state.get("tool_call_rounds", 0)
 
     # ----------------------------------------
     # 🛡️ INPUT GUARDRAIL: Censor
@@ -151,6 +153,33 @@ async def agent_node(state: AgentState):
         if tool_call["name"] != "CitedResponse"
     ]
 
+    next_tool_call_rounds = tool_call_rounds
+    if selected_tools:
+        next_tool_call_rounds += 1
+
+    if selected_tools and next_tool_call_rounds > settings.MAX_TOOL_CALL_ROUNDS:
+        fallback_messages = messages + [
+            SystemMessage(
+                content=(
+                    "You have reached the maximum number of tool-call rounds. "
+                    "Answer the user now using only the retrieved tool results already in the conversation. "
+                    "Do not call any more tools."
+                )
+            )
+        ]
+        fallback_response = await model.ainvoke(fallback_messages)
+        fallback_cost = extract_cost(fallback_response)
+        total_cost = response_cost + fallback_cost
+
+        run = get_current_run_tree()
+        if run:
+            fallback_usage = extract_usage_metadata(fallback_response)
+            if fallback_usage:
+                run.set(usage_metadata=fallback_usage)
+            run.add_outputs({"cost": total_cost})
+
+        return {"messages": [fallback_response], "tool_call_rounds": tool_call_rounds, "cost": total_cost}
+
     if response_cost:
         run = get_current_run_tree()
         if run:
@@ -158,9 +187,14 @@ async def agent_node(state: AgentState):
             run.add_outputs({"cost": response_cost})
 
     if selected_tools:
-        return {"messages": [response], "selected_tools": selected_tools, "cost": response_cost}
+        return {
+            "messages": [response],
+            "selected_tools": selected_tools,
+            "tool_call_rounds": next_tool_call_rounds,
+            "cost": response_cost,
+        }
 
-    return {"messages": [response], "cost": response_cost}
+    return {"messages": [response], "tool_call_rounds": tool_call_rounds, "cost": response_cost}
 
 
 tool_node = ToolNode(TOOLS_LIST)
