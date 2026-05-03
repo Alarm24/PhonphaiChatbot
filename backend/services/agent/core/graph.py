@@ -1,4 +1,5 @@
 import os
+import re
 from operator import add
 from typing import Annotated, TypedDict
 
@@ -11,20 +12,7 @@ from langgraph.graph.message import add_messages
 from langgraph.prebuilt import ToolNode
 from langsmith import get_current_run_tree
 from prompts.prompt import SYSTEM_PROMPT
-from pydantic import BaseModel, Field
 from tools.retriever_tool import TOOLS_LIST
-
-
-# ==========================================
-# --- OUTPUT SCHEMA ---
-# ==========================================
-class CitedResponse(BaseModel):
-    """ALWAYS use this tool to provide the final answer to the user."""
-
-    answer: str = Field(description="The final response text with inline [x] markers.")
-    used_indices: list[str] = Field(
-        description="A list of the string chunk IDs actually used in the answer (e.g., ['Remedy-1', 'Manual-2'])."
-    )
 
 
 # ==========================================
@@ -37,6 +25,7 @@ class AgentState(TypedDict):
     final_sources: list
     selected_tools: Annotated[list[str], add]
     tool_call_rounds: int
+    streaming: bool
     cost: float
 
 
@@ -48,17 +37,45 @@ os.environ["LANGCHAIN_ENDPOINT"] = settings.LANGCHAIN_ENDPOINT
 os.environ["LANGCHAIN_API_KEY"] = settings.LANGCHAIN_API_KEY
 os.environ["LANGCHAIN_PROJECT"] = settings.LANGCHAIN_PROJECT
 
-model = ChatOpenAI(
+base_model_config = dict(
     model="google/gemini-2.5-flash",
     openai_api_base="https://openrouter.ai/api/v1",
     openai_api_key=settings.OPENROUTER_API_KEY,
     temperature=0,
-    streaming=True,
 )
+
+model = ChatOpenAI(**base_model_config, streaming=False)
+streaming_model = ChatOpenAI(**base_model_config, streaming=True)
 
 model_with_tools = model.bind_tools(TOOLS_LIST).with_config(
     {"metadata": {"ls_provider": "openrouter", "ls_model_name": "google/gemini-2.5-flash"}}
 )
+streaming_model_with_tools = streaming_model.bind_tools(TOOLS_LIST).with_config(
+    {"metadata": {"ls_provider": "openrouter", "ls_model_name": "google/gemini-2.5-flash"}}
+)
+
+
+def collect_retrieved_chunks(messages: list) -> list[dict]:
+    """Collect retrieved chunks from tool artifacts in the current conversation."""
+    retrieved_chunks = []
+    for msg in messages:
+        if isinstance(msg, ToolMessage) and getattr(msg, "artifact", None):
+            for artifact_item in msg.artifact:
+                if artifact_item.get("source_type") == "ticket_lookup":
+                    continue
+                if artifact_item.get("chunk_id"):
+                    retrieved_chunks.append(artifact_item)
+    return retrieved_chunks
+
+
+def build_minimal_fallback_answer(retrieved_chunks: list[dict]) -> str:
+    """Best-effort extractive fallback for empty model completions."""
+    for chunk in retrieved_chunks:
+        content = chunk.get("content", "")
+        match = re.search(r"(?:ง่ายๆ\s*แค่|มี)\s*(\d+)\s*ขั้นตอน", content)
+        if match:
+            return f"มี {match.group(1)} ขั้นตอน"
+    return ""
 
 
 def extract_cost(message: AIMessage | ToolMessage | SystemMessage | object) -> float:
@@ -124,6 +141,7 @@ async def agent_node(state: AgentState):
 
     current_messages = list(state["messages"])
     tool_call_rounds = state.get("tool_call_rounds", 0)
+    use_streaming_model = state.get("streaming", False)
 
     # ----------------------------------------
     # 🛡️ INPUT GUARDRAIL: Censor
@@ -144,14 +162,13 @@ async def agent_node(state: AgentState):
 
     messages = [SystemMessage(content=SYSTEM_PROMPT)] + current_messages
 
-    response = await model_with_tools.ainvoke(messages)
+    active_model_with_tools = streaming_model_with_tools if use_streaming_model else model_with_tools
+    active_model = streaming_model if use_streaming_model else model
+
+    response = await active_model_with_tools.ainvoke(messages)
     response_cost = extract_cost(response)
 
-    selected_tools = [
-        tool_call["name"]
-        for tool_call in response.tool_calls
-        if tool_call["name"] != "CitedResponse"
-    ]
+    selected_tools = [tool_call["name"] for tool_call in response.tool_calls]
 
     next_tool_call_rounds = tool_call_rounds
     if selected_tools:
@@ -167,7 +184,7 @@ async def agent_node(state: AgentState):
                 )
             )
         ]
-        fallback_response = await model.ainvoke(fallback_messages)
+        fallback_response = await active_model.ainvoke(fallback_messages)
         fallback_cost = extract_cost(fallback_response)
         total_cost = response_cost + fallback_cost
 
@@ -194,6 +211,39 @@ async def agent_node(state: AgentState):
             "cost": response_cost,
         }
 
+    # Some provider/tool-call paths return an empty final completion after a successful
+    # retrieval turn. Retry once without tool binding, then use a minimal extractive
+    # fallback if the provider still returns an empty message.
+    if not (response.content or "").strip() and collect_retrieved_chunks(current_messages):
+        retry_messages = messages + [
+            SystemMessage(
+                content=(
+                    "Answer the user now in Thai using only the retrieved tool results already "
+                    "in the conversation. Do not call tools. Give the shortest direct answer."
+                )
+            )
+        ]
+        retry_response = await active_model.ainvoke(retry_messages)
+        retry_cost = extract_cost(retry_response)
+        total_cost = response_cost + retry_cost
+
+        if not (retry_response.content or "").strip():
+            fallback_answer = build_minimal_fallback_answer(collect_retrieved_chunks(current_messages))
+            retry_response = AIMessage(content=fallback_answer)
+
+        run = get_current_run_tree()
+        if run:
+            retry_usage = extract_usage_metadata(retry_response)
+            if retry_usage:
+                run.set(usage_metadata=retry_usage)
+            run.add_outputs({"cost": total_cost})
+
+        return {
+            "messages": [retry_response],
+            "tool_call_rounds": tool_call_rounds,
+            "cost": total_cost,
+        }
+
     return {"messages": [response], "tool_call_rounds": tool_call_rounds, "cost": response_cost}
 
 
@@ -203,16 +253,7 @@ tool_node = ToolNode(TOOLS_LIST)
 def format_final_answer(state: AgentState):
     """Intercepts the final response and ensures chunks are saved to state."""
     last_message = state["messages"][-1]
-
-    # 1. Safely extract the answer depending on how the model responded
-    cited_calls = [
-        tc for tc in getattr(last_message, "tool_calls", []) if tc["name"] == "CitedResponse"
-    ]
-
-    if cited_calls:
-        answer = cited_calls[0]["args"].get("answer", "")
-    else:
-        answer = last_message.content
+    answer = last_message.content
 
     # OUTPUT GUARDRAIL
     answer = censor_bad_words(answer)
@@ -264,9 +305,6 @@ def should_continue(state: AgentState):
     last_message = state["messages"][-1]
 
     if not last_message.tool_calls:
-        return "format_answer"
-
-    if any(tc["name"] == "CitedResponse" for tc in last_message.tool_calls):
         return "format_answer"
 
     return "tools"

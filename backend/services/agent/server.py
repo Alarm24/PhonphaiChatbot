@@ -99,6 +99,7 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
         initial_state = {
             "messages": [HumanMessage(content=request.user_message)],
             "tool_call_rounds": 0,
+            "streaming": False,
         }
         final_state = await langgraph_app.ainvoke(initial_state)
 
@@ -130,6 +131,7 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
         initial_state = {
             "messages": [HumanMessage(content=request.user_message)],
             "tool_call_rounds": 0,
+            "streaming": True,
         }
 
         # Smooth typewriter pacing — emit small fixed-size chunks at a consistent
