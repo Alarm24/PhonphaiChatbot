@@ -41,7 +41,7 @@ async def login(req: LoginRequest, settings: Settings = Depends(get_settings)):
     if not doc or not verify_password(req.password, doc.get("password_hash", "")):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
-    user_id = str(doc["_id"])
+    user_id = doc["user_id"]
     role = doc.get("role", "user")
     staff_id = doc.get("staff_id")
 

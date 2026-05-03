@@ -3,8 +3,10 @@ import datetime
 from bson.objectid import ObjectId
 from pymongo import ASCENDING, MongoClient
 
+from db.base import AbstractUserStore, UserRecord
 
-class UserStore:
+
+class MongoUserStore(AbstractUserStore):
     """MongoDB-backed store for auth user accounts."""
 
     def __init__(self, uri: str, db_name: str):
@@ -13,15 +15,28 @@ class UserStore:
         self.users = self.db["users"]
         self.users.create_index([("username", ASCENDING)], unique=True)
 
-    def find_by_username(self, username: str) -> dict | None:
-        return self.users.find_one({"username": username})
+    @staticmethod
+    def _to_record(doc: dict) -> UserRecord:
+        return {
+            "user_id": str(doc["_id"]),
+            "username": doc["username"],
+            "password_hash": doc["password_hash"],
+            "role": doc.get("role", "user"),
+            "staff_id": doc.get("staff_id"),
+            "created_at": doc.get("created_at"),
+        }
 
-    def find_by_id(self, user_id: str) -> dict | None:
+    def find_by_username(self, username: str) -> UserRecord | None:
+        doc = self.users.find_one({"username": username})
+        return self._to_record(doc) if doc else None
+
+    def find_by_id(self, user_id: str) -> UserRecord | None:
         try:
             oid = ObjectId(user_id)
         except Exception:
             return None
-        return self.users.find_one({"_id": oid})
+        doc = self.users.find_one({"_id": oid})
+        return self._to_record(doc) if doc else None
 
     def admin_exists(self) -> bool:
         return self.users.count_documents({"role": "admin"}, limit=1) > 0
