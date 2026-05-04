@@ -6,7 +6,7 @@ import retriever_pb2_grpc
 import uvicorn
 from auth.passwords import hash_password
 from config import get_settings
-from db.mongo import UserStore
+from db import AbstractUserStore, make_user_store
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from logger import log
@@ -14,7 +14,7 @@ from routers import auth, chat, files
 from state import gRPCState
 
 
-def _bootstrap_admin(store: UserStore, username: str, password: str) -> None:
+def _bootstrap_admin(store: AbstractUserStore, username: str, password: str) -> None:
     """Seed an admin account on first start if none exists. Idempotent."""
     if store.admin_exists():
         return
@@ -37,7 +37,7 @@ def _bootstrap_admin(store: UserStore, username: str, password: str) -> None:
 
 
 def _bootstrap_user(
-    store: UserStore,
+    store: AbstractUserStore,
     username: str,
     password: str,
     staff_id: int,
@@ -75,8 +75,8 @@ async def lifespan(app: FastAPI):
     gRPCState.retriever_client = retriever_pb2_grpc.RetrieverServiceStub(retriever_channel)
     gRPCState.agent_client = chatbot_pb2_grpc.AgentServiceStub(agent_channel)
 
-    # 3. Connect to MongoDB and seed accounts
-    gRPCState.user_store = UserStore(uri=settings.MONGO_URI, db_name=settings.MONGO_DB)
+    # 3. Connect to the user-data backend (mongo or postgres) and seed accounts
+    gRPCState.user_store = make_user_store(settings)
     _bootstrap_admin(
         gRPCState.user_store,
         settings.INITIAL_ADMIN_USERNAME,

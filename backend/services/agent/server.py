@@ -96,7 +96,11 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
 
         set_current_auth(_auth_from_request(request))
 
-        initial_state = {"messages": [HumanMessage(content=request.user_message)]}
+        initial_state = {
+            "messages": [HumanMessage(content=request.user_message)],
+            "tool_call_rounds": 0,
+            "streaming": False,
+        }
         final_state = await langgraph_app.ainvoke(initial_state)
 
         final_message = final_state["messages"][-1]
@@ -124,7 +128,11 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
 
         set_current_auth(_auth_from_request(request))
 
-        initial_state = {"messages": [HumanMessage(content=request.user_message)]}
+        initial_state = {
+            "messages": [HumanMessage(content=request.user_message)],
+            "tool_call_rounds": 0,
+            "streaming": True,
+        }
 
         # Smooth typewriter pacing — emit small fixed-size chunks at a consistent
         # interval so bursty LLM output (e.g. Gemini sometimes sends 30+ chars at

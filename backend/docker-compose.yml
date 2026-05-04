@@ -21,7 +21,7 @@ services:
       - rag_net
 
   mongo:
-    image: mongo:latest
+    image: mongo:8.2
     volumes:
       - ./data/mongo_data:/data/db
     networks:
@@ -73,8 +73,8 @@ services:
     healthcheck:              
       test: ["CMD", "python", "-c", "import socket; socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(('localhost', 50051))"]
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 20s
+      retries: 20
     depends_on:
       qdrant:
         condition: service_started
@@ -98,6 +98,7 @@ services:
       - LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
       - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
       - LANGCHAIN_PROJECT=phonphai-agent
+      - MAX_TOOL_CALL_ROUNDS=3
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(('localhost', 50052))"]
@@ -122,8 +123,10 @@ services:
       - AGENT_HOST=agent:50052
       - RETRIEVER_HOST=retriever:50051
       - ANONYMIZED_TELEMETRY=False
+      - USER_DB_BACKEND=${USER_DB_BACKEND:-mongo}
       - MONGO_URI=mongodb://mongo:27017
       - MONGO_DB=rag_db
+      - POSTGRES_USER_DSN=${POSTGRES_USER_DSN:-}
       - JWT_SECRET=${JWT_SECRET:-please-change-me}
       - JWT_ALGORITHM=HS256
       - JWT_EXPIRES_HOURS=168

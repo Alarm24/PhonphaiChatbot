@@ -101,3 +101,57 @@ export async function sendMessageStream(
     }
   }
 }
+
+export interface FileItem {
+  file_id: string
+  file_name: string
+  theme: string
+  created_at: string
+  size_bytes: number
+}
+
+export type FileTheme = 'remedy' | 'disaster' | 'manual'
+
+async function unwrapError(res: Response): Promise<never> {
+  const detail = await res.json().catch(() => ({ detail: res.statusText }))
+  throw new Error(detail.detail || res.statusText)
+}
+
+export async function listFiles(): Promise<FileItem[]> {
+  const res = await fetch(`${API_URL}/api/v1/files/`, {
+    headers: { ...authHeaders() },
+  })
+  if (!res.ok) await unwrapError(res)
+  const data = (await res.json()) as { files: FileItem[] }
+  return data.files
+}
+
+export async function uploadFile(
+  file: File,
+  theme: FileTheme,
+): Promise<{ file_id: string; message: string; success: boolean }> {
+  const form = new FormData()
+  form.append('file', file)
+  form.append('theme', theme)
+  const res = await fetch(`${API_URL}/api/v1/files/upload`, {
+    method: 'POST',
+    headers: { ...authHeaders() },
+    body: form,
+  })
+  if (!res.ok) await unwrapError(res)
+  return res.json() as Promise<{ file_id: string; message: string; success: boolean }>
+}
+
+export async function deleteFile(
+  fileId: string,
+  filename: string,
+  theme: string,
+): Promise<{ success: boolean; message: string }> {
+  const qs = new URLSearchParams({ filename, theme }).toString()
+  const res = await fetch(`${API_URL}/api/v1/files/${encodeURIComponent(fileId)}?${qs}`, {
+    method: 'DELETE',
+    headers: { ...authHeaders() },
+  })
+  if (!res.ok) await unwrapError(res)
+  return res.json() as Promise<{ success: boolean; message: string }>
+}

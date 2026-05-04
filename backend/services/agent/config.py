@@ -6,6 +6,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     APP_NAME: str = "Phonphai Agent Service"
     PORT: int = 50052
+    MAX_TOOL_CALL_ROUNDS: int = 3
 
     # Upstream Services
     RETRIEVER_HOST: str = "retriever:50051"

@@ -12,9 +12,16 @@ class Settings(BaseSettings):
     RETRIEVER_HOST: str = "retriever:50051"
     AGENT_HOST: str = "agent:50052"
 
-    # MongoDB (shared rag_db, separate `users` collection)
+    # User-data backend selection ("mongo" | "postgres")
+    USER_DB_BACKEND: str = "mongo"
+
+    # MongoDB (used when USER_DB_BACKEND="mongo"; shared rag_db, `users` collection)
     MONGO_URI: str = "mongodb://mongo:27017"
     MONGO_DB: str = "rag_db"
+
+    # Postgres (used when USER_DB_BACKEND="postgres")
+    # Example: postgresql://user:pass@host:5432/auth_db
+    POSTGRES_USER_DSN: str = ""
 
     # Auth
     JWT_SECRET: str = "change-me-in-production"
