@@ -5,6 +5,7 @@ import chatbot_pb2
 import chatbot_pb2_grpc
 from core.auth_context import RequestAuth, set_current_auth
 from core.graph import app as langgraph_app
+from core.session_context import set_current_session_id
 from langchain_core.messages import HumanMessage
 from logger import log
 
@@ -95,9 +96,11 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
         )
 
         set_current_auth(_auth_from_request(request))
+        set_current_session_id(request.session_id)
 
         initial_state = {
             "messages": [HumanMessage(content=request.user_message)],
+            "session_id": request.session_id,
             "tool_call_rounds": 0,
             "streaming": False,
         }
@@ -127,9 +130,11 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
         )
 
         set_current_auth(_auth_from_request(request))
+        set_current_session_id(request.session_id)
 
         initial_state = {
             "messages": [HumanMessage(content=request.user_message)],
+            "session_id": request.session_id,
             "tool_call_rounds": 0,
             "streaming": True,
         }

@@ -1,13 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import type { Message } from '../types'
-import { sendMessageStream } from '../services/api'
+import { clearChatHistory, sendMessageStream } from '../services/api'
 import { useLanguage } from '../contexts/LanguageContext'
 import { useAuth } from '../contexts/AuthContext'
 import { containsSknCode } from '../utils/skn'
 
-const STORAGE_KEY_SESSION = 'phonphai_session_id'
-const STORAGE_KEY_MESSAGES = 'phonphai_messages'
+const STORAGE_KEY_SESSION_PREFIX = 'phonphai_session_id'
+const STORAGE_KEY_MESSAGES_PREFIX = 'phonphai_messages'
 
 const MOCK_DELAY_MS = Number(import.meta.env.VITE_MOCK_THINKING_MS ?? 0)
 
@@ -20,9 +20,17 @@ function makeGreeting(greetingText: string): Message {
   }
 }
 
-function loadMessages(): Message[] {
+function sessionKeyFor(userKey: string): string {
+  return `${STORAGE_KEY_SESSION_PREFIX}:${userKey}`
+}
+
+function messagesKeyFor(userKey: string): string {
+  return `${STORAGE_KEY_MESSAGES_PREFIX}:${userKey}`
+}
+
+function loadMessagesFor(userKey: string): Message[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_MESSAGES)
+    const raw = localStorage.getItem(messagesKeyFor(userKey))
     if (!raw) return []
     const parsed = JSON.parse(raw) as Array<Record<string, unknown>>
     return parsed.map((m) => ({
@@ -35,21 +43,25 @@ function loadMessages(): Message[] {
   }
 }
 
-function getOrCreateSessionId(): string {
-  const stored = localStorage.getItem(STORAGE_KEY_SESSION)
+function getOrCreateSessionIdFor(userKey: string): string {
+  const key = sessionKeyFor(userKey)
+  const stored = localStorage.getItem(key)
   if (stored) return stored
   const id = uuidv4()
-  localStorage.setItem(STORAGE_KEY_SESSION, id)
+  localStorage.setItem(key, id)
   return id
 }
 
 export function useChatManager(greetingText: string) {
   const { t } = useLanguage()
   const { user } = useAuth()
-  const sessionIdRef = useRef<string>(getOrCreateSessionId())
+  const userKey = user?.user_id ?? 'anonymous'
+  const sessionIdRef = useRef<string>(getOrCreateSessionIdFor(userKey))
+  const lastUserKeyRef = useRef<string>(userKey)
+  const skipNextPersistRef = useRef<boolean>(false)
 
   const [messages, setMessages] = useState<Message[]>(() => {
-    const stored = loadMessages()
+    const stored = loadMessagesFor(userKey)
     return stored.length > 0 ? stored : [makeGreeting(greetingText)]
   })
 
@@ -67,11 +79,28 @@ export function useChatManager(greetingText: string) {
     })
   }, [greetingText])
 
-  // Persist messages to localStorage (skip thinking bubbles)
+  // When the auth user changes (login / logout / switch account), reload that user's history
   useEffect(() => {
+    if (lastUserKeyRef.current === userKey) return
+    lastUserKeyRef.current = userKey
+    skipNextPersistRef.current = true
+
+    sessionIdRef.current = getOrCreateSessionIdFor(userKey)
+    const stored = loadMessagesFor(userKey)
+    setMessages(stored.length > 0 ? stored : [makeGreeting(greetingText)])
+    setInputValue('')
+    setIsThinking(false)
+  }, [userKey, greetingText])
+
+  // Persist messages to the current user's slot (skip thinking bubbles)
+  useEffect(() => {
+    if (skipNextPersistRef.current) {
+      skipNextPersistRef.current = false
+      return
+    }
     const toStore = messages.filter((m) => !m.isThinking && !m.isStreaming)
-    localStorage.setItem(STORAGE_KEY_MESSAGES, JSON.stringify(toStore))
-  }, [messages])
+    localStorage.setItem(messagesKeyFor(userKey), JSON.stringify(toStore))
+  }, [messages, userKey])
 
   const dismissLoginRequired = useCallback(() => setShowLoginRequired(false), [])
 
@@ -215,14 +244,17 @@ export function useChatManager(greetingText: string) {
     }
   }, [isThinking, user, t])
 
-  const clearChat = useCallback((newGreetingText: string) => {
+  const clearChat = useCallback(async (newGreetingText: string) => {
+    if (user) {
+      try { await clearChatHistory() } catch { /* server-side clear failed; local clear still proceeds */ }
+    }
     const newId = uuidv4()
     sessionIdRef.current = newId
-    localStorage.setItem(STORAGE_KEY_SESSION, newId)
+    localStorage.setItem(sessionKeyFor(userKey), newId)
     setMessages([makeGreeting(newGreetingText)])
     setInputValue('')
     setIsThinking(false)
-  }, [])
+  }, [user, userKey])
 
   return {
     messages,

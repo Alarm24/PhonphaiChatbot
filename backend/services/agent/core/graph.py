@@ -27,6 +27,7 @@ class AgentState(TypedDict):
     tool_call_rounds: int
     streaming: bool
     cost: float
+    session_id: str
 
 
 settings = get_settings()
@@ -47,10 +48,15 @@ base_model_config = dict(
 model = ChatOpenAI(**base_model_config, streaming=False)
 streaming_model = ChatOpenAI(**base_model_config, streaming=True)
 
-model_with_tools = model.bind_tools(TOOLS_LIST).with_config(
+_active_tools = list(TOOLS_LIST)
+if settings.CHAT_HISTORY_ENABLED:
+    from tools.chat_history_tool import load_conversation_history
+    _active_tools.append(load_conversation_history)
+
+model_with_tools = model.bind_tools(_active_tools).with_config(
     {"metadata": {"ls_provider": "openrouter", "ls_model_name": "google/gemini-2.5-flash"}}
 )
-streaming_model_with_tools = streaming_model.bind_tools(TOOLS_LIST).with_config(
+streaming_model_with_tools = streaming_model.bind_tools(_active_tools).with_config(
     {"metadata": {"ls_provider": "openrouter", "ls_model_name": "google/gemini-2.5-flash"}}
 )
 
@@ -247,7 +253,7 @@ async def agent_node(state: AgentState):
     return {"messages": [response], "tool_call_rounds": tool_call_rounds, "cost": response_cost}
 
 
-tool_node = ToolNode(TOOLS_LIST)
+tool_node = ToolNode(_active_tools)
 
 
 def format_final_answer(state: AgentState):

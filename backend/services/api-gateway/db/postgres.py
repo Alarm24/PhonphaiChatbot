@@ -2,7 +2,7 @@ from uuid import UUID
 
 from psycopg_pool import ConnectionPool
 
-from db.base import AbstractUserStore, UserRecord
+from db.base import AbstractChatHistoryStore, AbstractUserStore, ChatTurnRecord, UserRecord
 
 _SCHEMA_SQL = """
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
@@ -91,3 +91,63 @@ class PostgresUserStore(AbstractUserStore):
             "staff_id": row[4],
             "created_at": row[5],
         }
+
+
+_CHAT_SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id  TEXT NOT NULL,
+  user_id     TEXT NOT NULL,
+  role        TEXT NOT NULL CHECK (role IN ('user','assistant')),
+  content     TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS chat_messages_session_idx
+  ON chat_messages (session_id, created_at);
+CREATE INDEX IF NOT EXISTS chat_messages_user_idx
+  ON chat_messages (user_id);
+"""
+
+
+class PostgresChatHistoryStore(AbstractChatHistoryStore):
+    """Postgres-backed store for conversation history."""
+
+    def __init__(self, dsn: str):
+        if not dsn:
+            raise ValueError(
+                "POSTGRES_USER_DSN is empty. Set it when CHAT_HISTORY_BACKEND=postgres."
+            )
+        self.pool = ConnectionPool(conninfo=dsn, min_size=1, max_size=5, open=True)
+        with self.pool.connection() as conn:
+            conn.execute(_CHAT_SCHEMA_SQL)
+
+    def append(self, session_id: str, user_id: str, role: str, content: str) -> None:
+        with self.pool.connection() as conn:
+            conn.execute(
+                "INSERT INTO chat_messages (session_id, user_id, role, content) "
+                "VALUES (%s, %s, %s, %s)",
+                (session_id, user_id, role, content),
+            )
+
+    def load_recent(self, session_id: str, limit: int) -> list[ChatTurnRecord]:
+        with self.pool.connection() as conn:
+            rows = conn.execute(
+                "SELECT role, content, created_at FROM ("
+                "  SELECT role, content, created_at"
+                "  FROM chat_messages WHERE session_id = %s"
+                "  ORDER BY created_at DESC LIMIT %s"
+                ") sub ORDER BY created_at ASC",
+                (session_id, limit),
+            ).fetchall()
+        return [
+            ChatTurnRecord(role=row[0], content=row[1], created_at=row[2])
+            for row in rows
+        ]
+
+    def delete_for_user(self, user_id: str) -> int:
+        with self.pool.connection() as conn:
+            result = conn.execute(
+                "DELETE FROM chat_messages WHERE user_id = %s",
+                (user_id,),
+            )
+        return result.rowcount

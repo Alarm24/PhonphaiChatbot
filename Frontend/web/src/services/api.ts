@@ -155,3 +155,11 @@ export async function deleteFile(
   if (!res.ok) await unwrapError(res)
   return res.json() as Promise<{ success: boolean; message: string }>
 }
+
+export async function clearChatHistory(): Promise<void> {
+  const res = await fetch(`${API_URL}/api/v1/chat/history`, {
+    method: 'DELETE',
+    headers: { ...authHeaders() },
+  })
+  if (!res.ok && res.status !== 204) await unwrapError(res)
+}

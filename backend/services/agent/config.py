@@ -16,6 +16,17 @@ class Settings(BaseSettings):
     POSTGRES_USER: str = "phonphai"
     POSTGRES_PASSWORD: str = "phonphai"
 
+    # MongoDB (used when CHAT_HISTORY_BACKEND="mongo")
+    MONGO_URI: str = "mongodb://mongo:27017"
+    MONGO_DB: str = "rag_db"
+
+    # Chat history
+    CHAT_HISTORY_ENABLED: bool = False
+    CHAT_HISTORY_BACKEND: str = "mongo"   # "mongo" | "postgres"
+    CHAT_HISTORY_WINDOW: int = 10         # max turns per load_conversation_history call
+    # Override Postgres DSN for chat history (defaults to constructing from POSTGRES_* vars)
+    POSTGRES_CHAT_DSN: str = ""
+
     # LangSmith Tracing Configuration
     LANGCHAIN_TRACING_V2: str = "true"
     LANGCHAIN_ENDPOINT: str = "https://api.smith.langchain.com"

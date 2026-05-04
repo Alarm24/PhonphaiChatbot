@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # Example: postgresql://user:pass@host:5432/auth_db
     POSTGRES_USER_DSN: str = ""
 
+    # Chat history
+    CHAT_HISTORY_ENABLED: bool = False
+    CHAT_HISTORY_BACKEND: str = "mongo"   # "mongo" | "postgres"
+    CHAT_HISTORY_WINDOW: int = 10         # max turns loaded by load_conversation_history
+
     # Auth
     JWT_SECRET: str = "change-me-in-production"
     JWT_ALGORITHM: str = "HS256"
