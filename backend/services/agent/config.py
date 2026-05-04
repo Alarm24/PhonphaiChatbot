@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     # Upstream Services
     RETRIEVER_HOST: str = "retriever:50051"
+    RETRIEVER_SEARCH_LIMIT: int = 8
     POSTGRES_HOST: str = "postgres"
     POSTGRES_PORT: int = 5432
     POSTGRES_DB: str = "phonphai"

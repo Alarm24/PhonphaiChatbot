@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import uuid
 import threading
+import uuid
 
 from config import get_settings
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -23,7 +23,9 @@ class QdrantDB:
         self.host = host or settings.QDRANT_HOST
         self.port = port or settings.QDRANT_PORT
 
-        self.embeddings = self._get_embeddings(settings.EMBEDDING_MODEL_NAME)
+        self.embedding_model_name = settings.EMBEDDING_MODEL_NAME
+        self.uses_e5_prefixes = "e5" in self.embedding_model_name.lower()
+        self.embeddings = self._get_embeddings(self.embedding_model_name)
         self.vector_size = len(self._embed_query("dimension probe"))
         self.client = self._connect()
 
@@ -40,13 +42,23 @@ class QdrantDB:
                     cls._shared_embedding_model_name = model_name
         return cls._shared_embeddings
 
+    def _prefix_for_e5(self, text: str, prefix: str) -> str:
+        if not self.uses_e5_prefixes:
+            return text
+        normalized = text.lstrip()
+        if normalized.startswith(prefix):
+            return text
+        return f"{prefix}{text}"
+
     def _embed_query(self, query_text: str):
         with self._embedding_lock:
-            return self.embeddings.embed_query(query_text)
+            return self.embeddings.embed_query(self._prefix_for_e5(query_text, "query: "))
 
     def _embed_documents(self, documents):
         with self._embedding_lock:
-            return self.embeddings.embed_documents(documents)
+            return self.embeddings.embed_documents(
+                [self._prefix_for_e5(document, "passage: ") for document in documents]
+            )
 
     @retry(stop=stop_after_attempt(10), wait=wait_fixed(3))
     def _connect(self):

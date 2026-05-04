@@ -60,10 +60,11 @@ services:
       - RERANK_MODEL_NAME=BAAI/bge-reranker-v2-m3
       - HYBRID_SEMANTIC_WEIGHT=0.6
       - HYBRID_BM25_WEIGHT=0.4
-      - RETRIEVAL_K=20
+      - RETRIEVAL_K=25
       - RERANK_TOP_K=10
-      - CHUNK_SIZE=1000
-      - CHUNK_OVERLAP=200
+      - RERANK_SCORE_THRESHOLD=0.0
+      - CHUNK_SIZE=550
+      - CHUNK_OVERLAP=90
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - LANGCHAIN_TRACING_V2=true
       - LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
@@ -99,6 +100,7 @@ services:
       - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
       - LANGCHAIN_PROJECT=phonphai-agent
       - MAX_TOOL_CALL_ROUNDS=3
+      - RETRIEVER_SEARCH_LIMIT=8
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(('localhost', 50052))"]
