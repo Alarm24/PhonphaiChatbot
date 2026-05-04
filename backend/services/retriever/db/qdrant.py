@@ -33,9 +33,18 @@ class QdrantDB:
             with cls._embedding_lock:
                 if cls._shared_embeddings is None or cls._shared_embedding_model_name != model_name:
                     log.info(f"Loading Embedding Model: {model_name} on cpu")
+                    # intfloat/multilingual-e5-* models require "query: " / "passage: "
+                    # prefixes; without them retrieval quality drops measurably.
+                    is_e5 = "e5" in model_name.lower()
+                    extra_kwargs = (
+                        {"query_instruction": "query: ", "embed_instruction": "passage: "}
+                        if is_e5
+                        else {}
+                    )
                     cls._shared_embeddings = HuggingFaceEmbeddings(
                         model_name=model_name,
                         model_kwargs={"device": "cpu"},
+                        **extra_kwargs,
                     )
                     cls._shared_embedding_model_name = model_name
         return cls._shared_embeddings

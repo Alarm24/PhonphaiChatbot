@@ -1,4 +1,5 @@
 import os
+import re
 import threading
 
 import numpy as np
@@ -7,6 +8,38 @@ from db.qdrant import QdrantDB
 from logger import log
 from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
+
+_THAI_RANGE = ("฀", "๿")
+_WORD_TOKEN_RE = re.compile(r"[a-z0-9]+")
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def _contains_thai(text: str) -> bool:
+    return any(_THAI_RANGE[0] <= char <= _THAI_RANGE[1] for char in text)
+
+
+def _char_ngrams(text: str, n: int = 3) -> list[str]:
+    if len(text) < n:
+        return [text] if text else []
+    return [text[i : i + n] for i in range(len(text) - n + 1)]
+
+
+def _tokenize_for_bm25(text: str) -> list[str]:
+    """Hybrid tokenizer: word tokens for ASCII, char-trigrams for Thai.
+
+    Mirrors evaluation/eval_runner/text_utils.py:tokenize_for_overlap so
+    BM25 actually contributes signal for Thai content (Thai has no
+    word-spaces, so naive split() collapses each phrase to one mega-token).
+    """
+    if not text:
+        return []
+    normalized = text.lower().replace(".", "")
+    tokens: list[str] = []
+    if _contains_thai(normalized):
+        compact_thai = _WHITESPACE_RE.sub("", "".join(c for c in normalized if _THAI_RANGE[0] <= c <= _THAI_RANGE[1]))
+        tokens.extend(_char_ngrams(compact_thai, 3))
+    tokens.extend(_WORD_TOKEN_RE.findall(normalized))
+    return tokens
 
 
 class BaseTheme:
@@ -31,8 +64,8 @@ class BaseTheme:
         self._sync_bm25_index()
 
     def _tokenize(self, text):
-        """Simple tokenizer for BM25 keyword matching"""
-        return text.lower().split()
+        """BM25 tokenizer that handles Thai (no word-spaces) via char-trigrams."""
+        return _tokenize_for_bm25(text)
 
     def _sync_bm25_index(self):
         """Pulls all docs from the vector store and builds an in-memory BM25 index."""
@@ -186,11 +219,18 @@ class BaseTheme:
         # Override with config values if not explicitly passed
         limit = limit or self.settings.RERANK_TOP_K
         fetch_k = fetch_k or self.settings.RETRIEVAL_K
+        threshold = self.settings.RERANK_SCORE_THRESHOLD
         rankings = self.rank_candidates(query=query, fetch_k=fetch_k)
         final_results = rankings["reranked_docs"]
 
+        # Apply rerank-score threshold but always keep at least one chunk so
+        # the LLM has grounding context (empty retrieval triggers worse hallucination).
+        kept = [doc for doc in final_results if doc["score"] >= threshold]
+        if not kept and final_results:
+            kept = [final_results[0]]
+
         parsed_results = []
-        for doc in final_results[:limit]:  # Cut off exactly at RERANK_TOP_K limit
+        for doc in kept[:limit]:  # Cut off at RERANK_TOP_K limit
             parsed_results.append(
                 {"content": doc["content"], "metadata": doc["metadata"], "score": doc["score"]}
             )

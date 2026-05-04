@@ -17,8 +17,11 @@ class Settings(BaseSettings):
     RERANK_DEVICE: str = "auto"
     HYBRID_SEMANTIC_WEIGHT: float = 0.6
     HYBRID_BM25_WEIGHT: float = 0.4
-    RETRIEVAL_K: int = 15
+    RETRIEVAL_K: int = 25
     RERANK_TOP_K: int = 5
+    # bge-reranker-v2-m3 emits raw logits where >0 ≈ relevant. Drop chunks
+    # below this threshold (always keep ≥1 so the LLM has something to ground on).
+    RERANK_SCORE_THRESHOLD: float = 0.0
     CHUNK_SIZE: int = 1000
     CHUNK_OVERLAP: int = 200
 
