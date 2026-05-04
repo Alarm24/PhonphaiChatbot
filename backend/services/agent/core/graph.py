@@ -84,6 +84,47 @@ def build_minimal_fallback_answer(retrieved_chunks: list[dict]) -> str:
     return ""
 
 
+def should_rewrite_disaster_answer(answer: str, retrieved_chunks: list[dict]) -> bool:
+    """Only apply the concise rewrite to answers grounded in Disaster retrieval."""
+    if not settings.DISASTER_CONCISE_REWRITE_ENABLED:
+        return False
+    if not (answer or "").strip():
+        return False
+    return any(chunk.get("theme") == "Disaster" for chunk in retrieved_chunks)
+
+
+async def rewrite_disaster_answer(question: str, answer: str) -> tuple[str, float]:
+    """Use the answer itself as source text and compress it for disaster eval/users."""
+    prompt = (
+        "Rewrite the disaster-safety answer into the shortest useful Thai response.\n"
+        "Rules:\n"
+        "- Return only the final Thai answer, no bullets, no markdown, no citations.\n"
+        "- Use one sentence. Use two short sentences only if needed for a critical warning.\n"
+        "- Start with the action or direct yes/no answer.\n"
+        "- Preserve exact prohibitions, numbers, phone numbers, measurements, and critical items.\n"
+        "- Remove background, causes, explanations, examples, and duplicated details.\n"
+        "- Do not add facts that are not already in the current answer.\n\n"
+        f"Question: {question}\n"
+        f"Current answer: {answer}\n"
+        "Concise answer:"
+    )
+
+    try:
+        rewritten = await model.ainvoke([HumanMessage(content=prompt)])
+    except Exception:
+        return answer, 0.0
+
+    content = (rewritten.content or "").strip()
+    if not content:
+        return answer, extract_cost(rewritten)
+
+    # Keep the original if the rewrite failed to become more compact.
+    if len(content) >= len(answer.strip()):
+        return answer, extract_cost(rewritten)
+
+    return content, extract_cost(rewritten)
+
+
 def extract_cost(message: AIMessage | ToolMessage | SystemMessage | object) -> float:
     """Best-effort extraction of OpenRouter-reported cost from a LangChain message."""
     response_metadata = getattr(message, "response_metadata", None) or {}
@@ -256,10 +297,11 @@ async def agent_node(state: AgentState):
 tool_node = ToolNode(_active_tools)
 
 
-def format_final_answer(state: AgentState):
+async def format_final_answer(state: AgentState):
     """Intercepts the final response and ensures chunks are saved to state."""
     last_message = state["messages"][-1]
     answer = last_message.content
+    rewrite_cost = 0.0
 
     # OUTPUT GUARDRAIL
     answer = censor_bad_words(answer)
@@ -282,16 +324,27 @@ def format_final_answer(state: AgentState):
                     retrieved_chunks_dict[chunk_id] = artifact_item
 
     # 3. Compile metadata
+    retrieved_chunks = list(retrieved_chunks_dict.values())
+    last_human_msg = next(
+        (msg for msg in reversed(state["messages"]) if msg.type == "human"), None
+    )
+    user_question = getattr(last_human_msg, "content", "") or ""
+    if should_rewrite_disaster_answer(answer, retrieved_chunks):
+        answer, rewrite_cost = await rewrite_disaster_answer(user_question, answer)
+        answer = censor_bad_words(answer)
+
     final_sources_metadata = [
         {
             "title": chunk.get("file_name", "Unknown Document"),
             "theme": chunk.get("theme", "Unknown Theme"),
             "content": chunk.get("content", ""),
         }
-        for chunk in retrieved_chunks_dict.values()
+        for chunk in retrieved_chunks
     ]
 
-    total_cost = round(sum(extract_cost(msg) for msg in state["messages"]), 10)
+    total_cost = round(
+        sum(extract_cost(msg) for msg in state["messages"]) + rewrite_cost, 10
+    )
     run = get_current_run_tree()
     if run:
         run.set(usage_metadata={"total_cost": total_cost})
@@ -299,7 +352,7 @@ def format_final_answer(state: AgentState):
 
     return {
         "messages": [AIMessage(content=answer, id=last_message.id)],
-        "retrieved_chunks": list(retrieved_chunks_dict.values()),
+        "retrieved_chunks": retrieved_chunks,
         "ticket_lookup_results": list(reversed(ticket_lookup_results)),
         "final_sources": final_sources_metadata,
         "cost": total_cost,

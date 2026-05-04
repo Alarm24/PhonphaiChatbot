@@ -75,11 +75,22 @@ def _build_focused_excerpt(content: str, query: str, max_chars: int = 1800) -> s
 async def _execute_search(query: str, theme_enum, theme_name: str) -> tuple[str, list]:
     """Helper to perform the raw gRPC call using the persistent connection."""
     try:
+        settings = get_settings()
+        search_limit = (
+            settings.DISASTER_RETRIEVER_SEARCH_LIMIT
+            if theme_name == "Disaster"
+            else settings.RETRIEVER_SEARCH_LIMIT
+        )
+        excerpt_max_chars = (
+            settings.DISASTER_EXCERPT_MAX_CHARS
+            if theme_name == "Disaster"
+            else 1800
+        )
         client = AgentState.retriever_client
         request = retriever_pb2.SearchRequest(
             query=query,
             theme=theme_enum,
-            limit=get_settings().RETRIEVER_SEARCH_LIMIT,
+            limit=search_limit,
         )
         response = await client.Search(request)
 
@@ -88,7 +99,9 @@ async def _execute_search(query: str, theme_enum, theme_name: str) -> tuple[str,
 
         for i, res in enumerate(response.results, start=1):
             page_info = getattr(res, "page", "Unknown")
-            focused_content = _build_focused_excerpt(res.content, query)
+            focused_content = _build_focused_excerpt(
+                res.content, query, max_chars=excerpt_max_chars
+            )
 
             # 1. Create a unique ID e.g., Remedy-1-a4f2
             unique_suffix = str(uuid.uuid4())[:4]

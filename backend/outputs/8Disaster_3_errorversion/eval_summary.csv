@@ -1,0 +1,5 @@
+﻿theme,question_type,format_based,testcase_count,tool_called_correctly_mean,cost_mean,precision_mean,recall_mean,f1_score_mean,correctness_mean,helpfulness_mean,irrelevancy_mean,extraneousness_mean,conciseness_mean
+disaster,human_question,text,40,1.0,0.0019489277,0.018147,0.831325,0.035488,0.875,0.875,0.175,0.425,0.825
+disaster,llm_question,text,40,1.0,0.0021079245,0.018147,0.831325,0.035488,0.875,0.85,0.2,0.325,0.775
+overall,human_question,text,40,1.0,0.0019489277,0.018147,0.831325,0.035488,0.875,0.875,0.175,0.425,0.825
+overall,llm_question,text,40,1.0,0.0021079245,0.018147,0.831325,0.035488,0.875,0.85,0.2,0.325,0.775

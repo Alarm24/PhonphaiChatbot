@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     # Upstream Services
     RETRIEVER_HOST: str = "retriever:50051"
     RETRIEVER_SEARCH_LIMIT: int = 8
+    DISASTER_RETRIEVER_SEARCH_LIMIT: int = 4
+    DISASTER_EXCERPT_MAX_CHARS: int = 900
+    DISASTER_CONCISE_REWRITE_ENABLED: bool = True
     POSTGRES_HOST: str = "postgres"
     POSTGRES_PORT: int = 5432
     POSTGRES_DB: str = "phonphai"

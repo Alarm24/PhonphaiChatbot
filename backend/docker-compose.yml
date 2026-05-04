@@ -101,6 +101,9 @@ services:
       - LANGCHAIN_PROJECT=phonphai-agent
       - MAX_TOOL_CALL_ROUNDS=3
       - RETRIEVER_SEARCH_LIMIT=8
+      - DISASTER_RETRIEVER_SEARCH_LIMIT=4
+      - DISASTER_EXCERPT_MAX_CHARS=900
+      - DISASTER_CONCISE_REWRITE_ENABLED=true
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; socket.socket(socket.AF_INET, socket.SOCK_STREAM).connect(('localhost', 50052))"]
