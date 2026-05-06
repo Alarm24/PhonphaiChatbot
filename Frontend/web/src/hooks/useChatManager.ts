@@ -204,11 +204,21 @@ export function useChatManager(greetingText: string) {
           // onDone
           (data) => {
             setMessages((prev) =>
-              prev.map((m) =>
-                m.id === botMsgId
-                  ? { ...m, text: data.response, isStreaming: false }
-                  : m,
-              ),
+              prev.map((m) => {
+                if (m.id === botMsgId) {
+                  return { ...m, isStreaming: false }
+                }
+                if (firstToken && m.id === thinkingId) {
+                  return {
+                    id: botMsgId,
+                    text: data.response,
+                    sender: 'bot' as const,
+                    timestamp: new Date(),
+                    isStreaming: false,
+                  }
+                }
+                return m
+              }),
             )
           },
           // onError
