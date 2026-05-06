@@ -30,12 +30,13 @@ def _format_ticket_lookup_message(ticket_lookups: list[dict]) -> str:
             blocks.append(f"ไม่พบข้อมูลคำร้องหมายเลข {ticket_code}")
             continue
 
-        first_row = rows[0]
-        status = first_row.get("status") or "-"
-        process_level = first_row.get("process_level") or "-"
-        blocks.append(
-            f"คำร้องหมายเลข {ticket_code} มีสถานะ {status} และมีการดำเนินการระดับ {process_level}"
-        )
+        for row in rows:
+            row_code = row.get("code") or ticket_code
+            status = row.get("status") or "-"
+            process_level = row.get("process_level") or "-"
+            blocks.append(
+                f"คำร้องหมายเลข {row_code} มีสถานะ {status} และมีการดำเนินการระดับ {process_level}"
+            )
 
     return "\n\n".join(blocks)
 

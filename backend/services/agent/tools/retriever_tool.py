@@ -9,6 +9,7 @@ from state import AgentState
 
 ASCII_TOKEN_RE = re.compile(r"[a-z0-9]+")
 TICKET_CODE_RE = re.compile(r"\b([A-Z]{3})[-\s]?(\d{4})[-\s]?(\d{4})\b", re.IGNORECASE)
+TICKET_SUFFIX_RE = re.compile(r"^\d{4}$")
 
 
 def _normalize_ticket_code(ticket_code: str) -> str:
@@ -170,11 +171,18 @@ async def _execute_ticket_lookup(ticket_code: str) -> tuple[str, list]:
 
     try:
         ticket_store = AgentState.ticket_store
-        rows = await asyncio.to_thread(
-            ticket_store.find_ticket_by_code,
-            normalized_code,
-            staff_filter,
-        )
+        if TICKET_SUFFIX_RE.fullmatch(normalized_code):
+            rows = await asyncio.to_thread(
+                ticket_store.find_tickets_by_suffix,
+                normalized_code,
+                staff_filter,
+            )
+        else:
+            rows = await asyncio.to_thread(
+                ticket_store.find_ticket_by_code,
+                normalized_code,
+                staff_filter,
+            )
         artifact = [
             {
                 "source_type": "ticket_lookup",
@@ -243,7 +251,7 @@ async def _execute_ticket_list() -> tuple[str, list]:
 # --- The 3 Tools ---
 @tool(response_format="content_and_artifact")
 async def search_remedy_tickets(ticket_code: str) -> tuple[str, list]:
-    """Use this ONLY for exact Remedy ticket codes such as SKN-2567-0006, BKK-2569-0001, or UTH-2569-0001."""
+    """Use this ONLY for exact Remedy ticket codes such as SKN-2567-0006, BKK-2569-0001, UTH-2569-0001, or a bare 4-digit ticket ID suffix when the user's message is only that suffix or clearly asks about a ticket/request."""
     return await _execute_ticket_lookup(ticket_code)
 
 

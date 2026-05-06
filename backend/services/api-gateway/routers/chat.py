@@ -15,6 +15,11 @@ router = APIRouter()
 
 # Matches Remedy ticket codes such as SKN-2567-0006, BKK-2569-0001, or UTH-2569-0001.
 TICKET_CODE_PATTERN = re.compile(r"\b[A-Z]{3}[-\s]?\d{4}[-\s]?\d{4}\b", re.IGNORECASE)
+TICKET_SUFFIX_PATTERN = re.compile(r"^\s*\d{4}\s*$")
+TICKET_SUFFIX_WITH_CONTEXT_PATTERN = re.compile(
+    r"(?:ticket|request|คำร้อง|หมายเลข).*\b\d{4}\b|\b\d{4}\b.*(?:ticket|request|คำร้อง|หมายเลข)",
+    re.IGNORECASE,
+)
 
 
 # --- Pydantic Models ---
@@ -55,7 +60,11 @@ def _enforce_ticket_login(message: str, user: CurrentUser | None) -> None:
     """Reject ticket queries from anonymous users; frontend modal is just UX, this is the gate."""
     if user is not None:
         return
-    if TICKET_CODE_PATTERN.search(message):
+    if (
+        TICKET_CODE_PATTERN.search(message)
+        or TICKET_SUFFIX_PATTERN.match(message)
+        or TICKET_SUFFIX_WITH_CONTEXT_PATTERN.search(message)
+    ):
         raise HTTPException(
             status_code=401,
             detail="Login required to query Remedy tickets (PPP-XXXX-XXXX).",
