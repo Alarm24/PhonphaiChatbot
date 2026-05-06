@@ -71,3 +71,25 @@ class PostgresTicketStore:
             }
             for row in rows
         ]
+
+    def list_ticket_codes(self, staff_id: int | None = None) -> list[str]:
+        """Return distinct ticket codes. If staff_id is given, only return that user's tickets."""
+        params: dict = {}
+        owner_clause = ""
+        if staff_id is not None:
+            owner_clause = 'WHERE "user" = %(staff_id)s'
+            params["staff_id"] = staff_id
+
+        query = f"""
+            SELECT DISTINCT code
+            FROM issue_logs
+            {owner_clause}
+            ORDER BY code
+        """
+
+        with connect(self._conninfo, row_factory=dict_row) as conn:
+            with conn.cursor() as cur:
+                cur.execute(query, params)
+                rows = cur.fetchall()
+
+        return [row["code"] for row in rows]

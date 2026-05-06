@@ -13,8 +13,8 @@ from state import gRPCState
 
 router = APIRouter()
 
-# Matches Remedy ticket codes such as SKN-2567-0006 (case-insensitive, dashes optional/loose).
-SKN_PATTERN = re.compile(r"\bSKN[-\s]?\d{4}[-\s]?\d{4}\b", re.IGNORECASE)
+# Matches Remedy ticket codes such as SKN-2567-0006, BKK-2569-0001, or UTH-2569-0001.
+TICKET_CODE_PATTERN = re.compile(r"\b[A-Z]{3}[-\s]?\d{4}[-\s]?\d{4}\b", re.IGNORECASE)
 
 
 # --- Pydantic Models ---
@@ -51,14 +51,14 @@ def _build_grpc_request(
     )
 
 
-def _enforce_skn_login(message: str, user: CurrentUser | None) -> None:
-    """Reject SKN ticket queries from anonymous users — frontend modal is just UX, this is the gate."""
+def _enforce_ticket_login(message: str, user: CurrentUser | None) -> None:
+    """Reject ticket queries from anonymous users; frontend modal is just UX, this is the gate."""
     if user is not None:
         return
-    if SKN_PATTERN.search(message):
+    if TICKET_CODE_PATTERN.search(message):
         raise HTTPException(
             status_code=401,
-            detail="Login required to query Remedy tickets (SKN-XXXX-XXXX).",
+            detail="Login required to query Remedy tickets (PPP-XXXX-XXXX).",
         )
 
 
@@ -68,7 +68,7 @@ async def chat_with_agent(
     request: ChatRequest,
     user: CurrentUser | None = Depends(get_optional_user),
 ):
-    _enforce_skn_login(request.message, user)
+    _enforce_ticket_login(request.message, user)
     settings = get_settings()
     effective_session_id = user.user_id if user else request.session_id
     try:
@@ -102,7 +102,7 @@ async def chat_stream(
     request: ChatRequest,
     user: CurrentUser | None = Depends(get_optional_user),
 ):
-    _enforce_skn_login(request.message, user)
+    _enforce_ticket_login(request.message, user)
     settings = get_settings()
     effective_session_id = user.user_id if user else request.session_id
 

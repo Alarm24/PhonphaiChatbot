@@ -31,7 +31,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
           }`}
         >
           {isBot ? (
-            <div className="break-words text-sm leading-relaxed">
+            <div className="break-words whitespace-pre-line text-sm leading-relaxed">
               <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{

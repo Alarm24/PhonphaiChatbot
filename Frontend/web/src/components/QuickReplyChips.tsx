@@ -1,5 +1,6 @@
 import { Badge } from './ui/badge'
 import { useLanguage } from '../contexts/LanguageContext'
+import { useAuth } from '../contexts/AuthContext'
 
 interface QuickReplyChipsProps {
   onSelect: (text: string) => void
@@ -8,10 +9,11 @@ interface QuickReplyChipsProps {
 
 export function QuickReplyChips({ onSelect, disabled }: QuickReplyChipsProps) {
   const { t } = useLanguage()
+  const { user } = useAuth()
 
   const quickReplies = [
     t('quickReply_flood'),
-    t('quickReply_forgotPassword'),
+    user ? 'ขอรายการคำร้องทั้งหมด' : t('quickReply_forgotPassword'),
     t('quickReply_contact'),
     t('quickReply_hotline'),
   ]

@@ -40,6 +40,23 @@ def _format_ticket_lookup_message(ticket_lookups: list[dict]) -> str:
     return "\n\n".join(blocks)
 
 
+def _format_ticket_list_message(ticket_lists: list[dict]) -> str:
+    codes: list[str] = []
+    seen: set[str] = set()
+
+    for ticket_list in ticket_lists:
+        for code in ticket_list.get("codes", []):
+            normalized_code = str(code).strip().upper()
+            if normalized_code and normalized_code not in seen:
+                seen.add(normalized_code)
+                codes.append(normalized_code)
+
+    if not codes:
+        return "ไม่พบรายการคำร้อง"
+
+    return "\n".join(codes)
+
+
 def _build_sources(final_state: dict) -> tuple[list, str | None]:
     """Build protobuf Source list and optional ticket override text from final graph state."""
     source_items = final_state.get("final_sources", [])
@@ -71,6 +88,18 @@ def _build_sources(final_state: dict) -> tuple[list, str | None]:
                     title=lookup.get("ticket_code", "Ticket Lookup"),
                     theme="ticket_lookup",
                     content=json.dumps(lookup.get("rows", []), ensure_ascii=False),
+                )
+            )
+
+    ticket_lists = final_state.get("ticket_list_results", [])
+    if ticket_lists:
+        ticket_override = _format_ticket_list_message(ticket_lists)
+        for ticket_list in ticket_lists:
+            sources.append(
+                chatbot_pb2.Source(
+                    title="ticket_list",
+                    theme="ticket_list",
+                    content=json.dumps(ticket_list.get("codes", []), ensure_ascii=False),
                 )
             )
 
