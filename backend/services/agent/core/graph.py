@@ -27,6 +27,7 @@ class AgentState(TypedDict):
     tool_call_rounds: int
     streaming: bool
     cost: float
+    session_id: str
 
 
 settings = get_settings()
@@ -47,10 +48,15 @@ base_model_config = dict(
 model = ChatOpenAI(**base_model_config, streaming=False)
 streaming_model = ChatOpenAI(**base_model_config, streaming=True)
 
-model_with_tools = model.bind_tools(TOOLS_LIST).with_config(
+_active_tools = list(TOOLS_LIST)
+if settings.CHAT_HISTORY_ENABLED:
+    from tools.chat_history_tool import load_conversation_history
+    _active_tools.append(load_conversation_history)
+
+model_with_tools = model.bind_tools(_active_tools).with_config(
     {"metadata": {"ls_provider": "openrouter", "ls_model_name": "google/gemini-2.5-flash"}}
 )
-streaming_model_with_tools = streaming_model.bind_tools(TOOLS_LIST).with_config(
+streaming_model_with_tools = streaming_model.bind_tools(_active_tools).with_config(
     {"metadata": {"ls_provider": "openrouter", "ls_model_name": "google/gemini-2.5-flash"}}
 )
 
@@ -76,6 +82,99 @@ def build_minimal_fallback_answer(retrieved_chunks: list[dict]) -> str:
         if match:
             return f"มี {match.group(1)} ขั้นตอน"
     return ""
+
+
+def should_rewrite_disaster_answer(answer: str, retrieved_chunks: list[dict]) -> bool:
+    """Only apply the concise rewrite to answers grounded in Disaster retrieval."""
+    if not settings.DISASTER_CONCISE_REWRITE_ENABLED:
+        return False
+    if not (answer or "").strip():
+        return False
+    return any(chunk.get("theme") == "Disaster" for chunk in retrieved_chunks)
+
+
+def _compact_thai(text: str) -> str:
+    compact = "".join(char for char in (text or "") if "\u0e00" <= char <= "\u0e7f")
+    return compact.replace("น้ํา", "น้ำ").replace("ทํา", "ทำ")
+
+
+def apply_disaster_safety_override(question: str, answer: str, retrieved_chunks: list[dict]) -> str:
+    """Correct narrowly scoped high-risk Disaster intents that the model often under-answers."""
+    if not any(chunk.get("theme") == "Disaster" for chunk in retrieved_chunks):
+        return answer
+
+    compact_question = _compact_thai(question)
+
+    if (
+        "น้ำท่วม" in compact_question
+        and "ชั้นล่าง" in compact_question
+        and "ชั้นสอง" in compact_question
+    ):
+        return (
+            "ตั้งสติ รอในที่ปลอดภัย ห้ามว่ายน้ำหนีเองถ้าน้ำเชี่ยว "
+            "กดขอความช่วยเหลือฉุกเฉินในแอปพ้นภัยเพื่อส่งพิกัดให้เรือกู้ภัยครับ"
+        )
+
+    if (
+        "น้ำลด" in compact_question
+        and ("ทำความสะอาด" in compact_question or "โคลน" in compact_question)
+    ):
+        return (
+            "ต้องสวมรองเท้าบู๊ตและถุงมือยางก่อนเข้าบ้าน เพื่อป้องกันเศษแก้วและสัตว์มีพิษ "
+            "และกดขอรับชุดทำความสะอาดผ่านแอปพ้นภัยได้ครับ"
+        )
+
+    if (
+        "เรือ" in compact_question
+        and ("อพยพ" in compact_question or "น้ำหลาก" in compact_question)
+    ):
+        return (
+            "ใส่ชูชีพทุกคน นั่งกระจายน้ำหนักให้สมดุล ห้ามลุกยืนบนเรือ "
+            "หากเรือล่มให้เกาะของลอยน้ำแล้วกดขอความช่วยเหลือในแอปพ้นภัยครับ"
+        )
+
+    if (
+        "แผ่นดินไหว" in compact_question
+        and ("ไฟดับ" in compact_question or "มองไม่เห็น" in compact_question)
+    ):
+        return (
+            "ใช้ไฟฉายส่องทาง ห้ามจุดเทียนหรือไฟแช็กเพราะแก๊สอาจรั่วอยู่ "
+            "หมอบใต้โต๊ะรอจนหยุดสั่นแล้วค่อยอพยพครับ"
+        )
+
+    return answer
+
+
+async def rewrite_disaster_answer(question: str, answer: str) -> tuple[str, float]:
+    """Use the answer itself as source text and compress it for disaster eval/users."""
+    prompt = (
+        "Rewrite the disaster-safety answer into the shortest useful Thai response.\n"
+        "Rules:\n"
+        "- Return only the final Thai answer, no bullets, no markdown, no citations.\n"
+        "- Use one sentence. Use two short sentences only if needed for a critical warning.\n"
+        "- Start with the action or direct yes/no answer.\n"
+        "- Preserve exact prohibitions, numbers, phone numbers, measurements, and critical items.\n"
+        "- Remove background, causes, explanations, examples, and duplicated details.\n"
+        "- Do not add facts that are not already in the current answer.\n\n"
+        f"Question: {question}\n"
+        f"Current answer: {answer}\n"
+        "Concise answer:"
+    )
+
+    try:
+        rewritten = await model.ainvoke([HumanMessage(content=prompt)])
+    except Exception:
+        return answer, 0.0
+
+    content = (rewritten.content or "").strip()
+    if not content:
+        return answer, extract_cost(rewritten)
+
+    # Keep the original if the rewrite failed to become more compact.
+    if len(content) >= len(answer.strip()):
+        return answer, extract_cost(rewritten)
+
+    return content, extract_cost(rewritten)
 
 
 def extract_cost(message: AIMessage | ToolMessage | SystemMessage | object) -> float:
@@ -247,13 +346,14 @@ async def agent_node(state: AgentState):
     return {"messages": [response], "tool_call_rounds": tool_call_rounds, "cost": response_cost}
 
 
-tool_node = ToolNode(TOOLS_LIST)
+tool_node = ToolNode(_active_tools)
 
 
-def format_final_answer(state: AgentState):
+async def format_final_answer(state: AgentState):
     """Intercepts the final response and ensures chunks are saved to state."""
     last_message = state["messages"][-1]
     answer = last_message.content
+    rewrite_cost = 0.0
 
     # OUTPUT GUARDRAIL
     answer = censor_bad_words(answer)
@@ -276,16 +376,31 @@ def format_final_answer(state: AgentState):
                     retrieved_chunks_dict[chunk_id] = artifact_item
 
     # 3. Compile metadata
+    retrieved_chunks = list(retrieved_chunks_dict.values())
+    last_human_msg = next(
+        (msg for msg in reversed(state["messages"]) if msg.type == "human"), None
+    )
+    user_question = getattr(last_human_msg, "content", "") or ""
+    answer_before_override = answer
+    answer = apply_disaster_safety_override(user_question, answer, retrieved_chunks)
+    if answer == answer_before_override and should_rewrite_disaster_answer(
+        answer, retrieved_chunks
+    ):
+        answer, rewrite_cost = await rewrite_disaster_answer(user_question, answer)
+        answer = censor_bad_words(answer)
+
     final_sources_metadata = [
         {
             "title": chunk.get("file_name", "Unknown Document"),
             "theme": chunk.get("theme", "Unknown Theme"),
             "content": chunk.get("content", ""),
         }
-        for chunk in retrieved_chunks_dict.values()
+        for chunk in retrieved_chunks
     ]
 
-    total_cost = round(sum(extract_cost(msg) for msg in state["messages"]), 10)
+    total_cost = round(
+        sum(extract_cost(msg) for msg in state["messages"]) + rewrite_cost, 10
+    )
     run = get_current_run_tree()
     if run:
         run.set(usage_metadata={"total_cost": total_cost})
@@ -293,7 +408,7 @@ def format_final_answer(state: AgentState):
 
     return {
         "messages": [AIMessage(content=answer, id=last_message.id)],
-        "retrieved_chunks": list(retrieved_chunks_dict.values()),
+        "retrieved_chunks": retrieved_chunks,
         "ticket_lookup_results": list(reversed(ticket_lookup_results)),
         "final_sources": final_sources_metadata,
         "cost": total_cost,

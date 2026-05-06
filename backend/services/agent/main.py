@@ -4,6 +4,7 @@ import chatbot_pb2_grpc
 import grpc
 import retriever_pb2_grpc
 from config import get_settings
+from db.chat_history import make_chat_history_store
 from db.postgres import PostgresTicketStore
 from logger import log
 from server import AgentServicer
@@ -30,6 +31,13 @@ async def serve():
         f"[{settings.APP_NAME}] Connected to Postgres at "
         f"{settings.POSTGRES_HOST}:{settings.POSTGRES_PORT}/{settings.POSTGRES_DB}"
     )
+
+    if settings.CHAT_HISTORY_ENABLED:
+        AgentState.chat_history_store = make_chat_history_store(settings)
+        log.info(
+            f"[{settings.APP_NAME}] Chat history enabled "
+            f"(backend={settings.CHAT_HISTORY_BACKEND}, window={settings.CHAT_HISTORY_WINDOW})"
+        )
 
     # 2. Start the Agent's own gRPC Server (async)
     server = grpc.aio.server()

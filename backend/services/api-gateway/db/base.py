@@ -12,6 +12,25 @@ class UserRecord(TypedDict):
     created_at: datetime.datetime
 
 
+class ChatTurnRecord(TypedDict):
+    role: str           # 'user' | 'assistant'
+    content: str
+    created_at: datetime.datetime
+
+
+class AbstractChatHistoryStore(ABC):
+    """Backend-agnostic store for per-user conversation history."""
+
+    @abstractmethod
+    def append(self, session_id: str, user_id: str, role: str, content: str) -> None: ...
+
+    @abstractmethod
+    def load_recent(self, session_id: str, limit: int) -> list[ChatTurnRecord]: ...
+
+    @abstractmethod
+    def delete_for_user(self, user_id: str) -> int: ...
+
+
 class AbstractUserStore(ABC):
     """Backend-agnostic store for auth user accounts.
 

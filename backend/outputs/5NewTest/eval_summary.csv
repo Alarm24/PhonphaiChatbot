@@ -1,0 +1,9 @@
+﻿theme,question_type,format_based,testcase_count,tool_called_correctly_mean,cost_mean,precision_mean,recall_mean,f1_score_mean,correctness_mean,helpfulness_mean,irrelevancy_mean,extraneousness_mean,conciseness_mean
+manual,human_question,image,10,1.0,0.001586564,0.029687,0.67798,0.056618,0.7,0.5,0.0,0.5,0.9
+manual,human_question,text,30,1.0,0.0017279117,0.039256,0.947075,0.075017,0.833333,0.733333,0.066667,0.3,0.566667
+manual,llm_question,image,10,1.0,0.001633214,0.028819,0.681284,0.054851,0.6,0.3,0.0,0.5,0.7
+manual,llm_question,text,30,1.0,0.0016404423,0.039353,0.923102,0.075061,0.966667,0.6,0.033333,0.366667,0.7
+overall,human_question,image,10,1.0,0.001586564,0.029687,0.67798,0.056618,0.7,0.5,0.0,0.5,0.9
+overall,human_question,text,30,1.0,0.0017279117,0.039256,0.947075,0.075017,0.833333,0.733333,0.066667,0.3,0.566667
+overall,llm_question,image,10,1.0,0.001633214,0.028819,0.681284,0.054851,0.6,0.3,0.0,0.5,0.7
+overall,llm_question,text,30,1.0,0.0016404423,0.039353,0.923102,0.075061,0.966667,0.6,0.033333,0.366667,0.7

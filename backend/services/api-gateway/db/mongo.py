@@ -1,9 +1,9 @@
 import datetime
 
 from bson.objectid import ObjectId
-from pymongo import ASCENDING, MongoClient
+from pymongo import ASCENDING, DESCENDING, MongoClient
 
-from db.base import AbstractUserStore, UserRecord
+from db.base import AbstractChatHistoryStore, AbstractUserStore, ChatTurnRecord, UserRecord
 
 
 class MongoUserStore(AbstractUserStore):
@@ -57,3 +57,40 @@ class MongoUserStore(AbstractUserStore):
         }
         result = self.users.insert_one(doc)
         return str(result.inserted_id)
+
+
+class MongoChatHistoryStore(AbstractChatHistoryStore):
+    """MongoDB-backed store for conversation history."""
+
+    def __init__(self, uri: str, db_name: str):
+        self.client = MongoClient(uri)
+        self.collection = self.client[db_name]["chat_messages"]
+        self.collection.create_index(
+            [("session_id", ASCENDING), ("created_at", ASCENDING)]
+        )
+        self.collection.create_index([("user_id", ASCENDING)])
+
+    def append(self, session_id: str, user_id: str, role: str, content: str) -> None:
+        self.collection.insert_one({
+            "session_id": session_id,
+            "user_id": user_id,
+            "role": role,
+            "content": content,
+            "created_at": datetime.datetime.utcnow(),
+        })
+
+    def load_recent(self, session_id: str, limit: int) -> list[ChatTurnRecord]:
+        docs = list(
+            self.collection.find({"session_id": session_id})
+            .sort("created_at", DESCENDING)
+            .limit(limit)
+        )
+        docs.reverse()
+        return [
+            ChatTurnRecord(role=d["role"], content=d["content"], created_at=d["created_at"])
+            for d in docs
+        ]
+
+    def delete_for_user(self, user_id: str) -> int:
+        result = self.collection.delete_many({"user_id": user_id})
+        return result.deleted_count

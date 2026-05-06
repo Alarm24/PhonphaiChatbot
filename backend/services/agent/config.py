@@ -10,11 +10,26 @@ class Settings(BaseSettings):
 
     # Upstream Services
     RETRIEVER_HOST: str = "retriever:50051"
+    RETRIEVER_SEARCH_LIMIT: int = 8
+    DISASTER_RETRIEVER_SEARCH_LIMIT: int = 4
+    DISASTER_EXCERPT_MAX_CHARS: int = 900
+    DISASTER_CONCISE_REWRITE_ENABLED: bool = True
     POSTGRES_HOST: str = "postgres"
     POSTGRES_PORT: int = 5432
     POSTGRES_DB: str = "phonphai"
     POSTGRES_USER: str = "phonphai"
     POSTGRES_PASSWORD: str = "phonphai"
+
+    # MongoDB (used when CHAT_HISTORY_BACKEND="mongo")
+    MONGO_URI: str = "mongodb://mongo:27017"
+    MONGO_DB: str = "rag_db"
+
+    # Chat history
+    CHAT_HISTORY_ENABLED: bool = False
+    CHAT_HISTORY_BACKEND: str = "mongo"   # "mongo" | "postgres"
+    CHAT_HISTORY_WINDOW: int = 10         # max turns per load_conversation_history call
+    # Override Postgres DSN for chat history (defaults to constructing from POSTGRES_* vars)
+    POSTGRES_CHAT_DSN: str = ""
 
     # LangSmith Tracing Configuration
     LANGCHAIN_TRACING_V2: str = "true"

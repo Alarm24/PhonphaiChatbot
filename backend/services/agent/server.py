@@ -5,6 +5,7 @@ import chatbot_pb2
 import chatbot_pb2_grpc
 from core.auth_context import RequestAuth, set_current_auth
 from core.graph import app as langgraph_app
+from core.session_context import set_current_session_id
 from langchain_core.messages import HumanMessage
 from logger import log
 
@@ -95,9 +96,11 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
         )
 
         set_current_auth(_auth_from_request(request))
+        set_current_session_id(request.session_id)
 
         initial_state = {
             "messages": [HumanMessage(content=request.user_message)],
+            "session_id": request.session_id,
             "tool_call_rounds": 0,
             "streaming": False,
         }
@@ -127,9 +130,11 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
         )
 
         set_current_auth(_auth_from_request(request))
+        set_current_session_id(request.session_id)
 
         initial_state = {
             "messages": [HumanMessage(content=request.user_message)],
+            "session_id": request.session_id,
             "tool_call_rounds": 0,
             "streaming": True,
         }
@@ -140,40 +145,26 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
         SMOOTH_CHUNK_SIZE = 2
         SMOOTH_DELAY_SEC = 0.025
 
+        async def stream_text(text: str):
+            for i in range(0, len(text), SMOOTH_CHUNK_SIZE):
+                yield chatbot_pb2.ChatStreamChunk(
+                    session_id=request.session_id,
+                    token=text[i:i + SMOOTH_CHUNK_SIZE],
+                )
+                await asyncio.sleep(SMOOTH_DELAY_SEC)
+
         try:
             final_state: dict = {}
-            any_token_streamed: bool = False
 
             async for mode, data in langgraph_app.astream(
                 initial_state,
                 stream_mode=["updates", "messages"],
             ):
                 if mode == "messages":
-                    msg_chunk, metadata = data
-
-                    if metadata.get("langgraph_node") != "agent":
-                        continue
-
-                    if getattr(msg_chunk, "tool_call_chunks", None):
-                        continue
-
-                    content = getattr(msg_chunk, "content", "") or ""
-                    if isinstance(content, list):
-                        content = "".join(
-                            part.get("text", "")
-                            for part in content
-                            if isinstance(part, dict)
-                        )
-                    if not content:
-                        continue
-
-                    any_token_streamed = True
-                    for i in range(0, len(content), SMOOTH_CHUNK_SIZE):
-                        yield chatbot_pb2.ChatStreamChunk(
-                            session_id=request.session_id,
-                            token=content[i:i + SMOOTH_CHUNK_SIZE],
-                        )
-                        await asyncio.sleep(SMOOTH_DELAY_SEC)
+                    # The agent node can emit a draft that is later censored,
+                    # safety-overridden, or rewritten by format_final_answer.
+                    # Suppress draft tokens so the UI only streams final text.
+                    continue
 
                 elif mode == "updates":
                     for _node_name, update in data.items():
@@ -189,13 +180,9 @@ class AgentServicer(chatbot_pb2_grpc.AgentServiceServicer):
 
             cost = float(final_state.get("cost") or 0.0)
 
-            if not any_token_streamed and ai_text:
-                for i in range(0, len(ai_text), SMOOTH_CHUNK_SIZE):
-                    yield chatbot_pb2.ChatStreamChunk(
-                        session_id=request.session_id,
-                        token=ai_text[i:i + SMOOTH_CHUNK_SIZE],
-                    )
-                    await asyncio.sleep(SMOOTH_DELAY_SEC)
+            if ai_text:
+                async for chunk in stream_text(ai_text):
+                    yield chunk
 
             yield chatbot_pb2.ChatStreamChunk(
                 session_id=request.session_id,

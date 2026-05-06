@@ -1,9 +1,11 @@
+import asyncio
 import json
 import re
 from typing import List
 
 import chatbot_pb2
-from auth.dependencies import CurrentUser, get_optional_user
+from auth.dependencies import CurrentUser, get_optional_user, require_user
+from config import get_settings
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -34,10 +36,14 @@ class ChatResponse(BaseModel):
     cost: float = 0.0
 
 
-def _build_grpc_request(req: ChatRequest, user: CurrentUser | None) -> chatbot_pb2.ChatRequest:
+def _build_grpc_request(
+    req: ChatRequest,
+    user: CurrentUser | None,
+    session_id: str,
+) -> chatbot_pb2.ChatRequest:
     """Embed auth context into the gRPC ChatRequest. Anonymous users get blank role/staff_id."""
     return chatbot_pb2.ChatRequest(
-        session_id=req.session_id,
+        session_id=session_id,
         user_message=req.message,
         user_role=user.role if user else "",
         staff_id=user.staff_id if (user and user.staff_id is not None) else 0,
@@ -63,14 +69,21 @@ async def chat_with_agent(
     user: CurrentUser | None = Depends(get_optional_user),
 ):
     _enforce_skn_login(request.message, user)
+    settings = get_settings()
+    effective_session_id = user.user_id if user else request.session_id
     try:
         client = gRPCState.agent_client
-        grpc_response = await client.Chat(_build_grpc_request(request, user))
+        grpc_response = await client.Chat(_build_grpc_request(request, user, effective_session_id))
 
         sources = [
             SourceModel(title=s.title, theme=s.theme, content=s.content)
             for s in grpc_response.sources
         ]
+
+        if settings.CHAT_HISTORY_ENABLED and user and gRPCState.chat_history_store:
+            store = gRPCState.chat_history_store
+            await asyncio.to_thread(store.append, effective_session_id, user.user_id, "user", request.message)
+            await asyncio.to_thread(store.append, effective_session_id, user.user_id, "assistant", grpc_response.ai_message)
 
         return ChatResponse(
             session_id=grpc_response.session_id,
@@ -90,11 +103,14 @@ async def chat_stream(
     user: CurrentUser | None = Depends(get_optional_user),
 ):
     _enforce_skn_login(request.message, user)
+    settings = get_settings()
+    effective_session_id = user.user_id if user else request.session_id
 
     client = gRPCState.agent_client
-    grpc_request = _build_grpc_request(request, user)
+    grpc_request = _build_grpc_request(request, user, effective_session_id)
 
     async def event_generator():
+        ai_message_accumulated = ""
         try:
             async for chunk in client.ChatStream(grpc_request):
                 payload_type = chunk.WhichOneof("payload")
@@ -105,6 +121,7 @@ async def chat_stream(
 
                 elif payload_type == "final_response":
                     resp = chunk.final_response
+                    ai_message_accumulated = resp.ai_message
                     sources = [
                         {"title": s.title, "theme": s.theme, "content": s.content}
                         for s in resp.sources
@@ -124,6 +141,15 @@ async def chat_stream(
         except Exception as e:
             data = json.dumps({"type": "error", "message": str(e)})
             yield f"data: {data}\n\n"
+        finally:
+            if settings.CHAT_HISTORY_ENABLED and user and gRPCState.chat_history_store and ai_message_accumulated:
+                store = gRPCState.chat_history_store
+                asyncio.create_task(asyncio.to_thread(
+                    store.append, effective_session_id, user.user_id, "user", request.message
+                ))
+                asyncio.create_task(asyncio.to_thread(
+                    store.append, effective_session_id, user.user_id, "assistant", ai_message_accumulated
+                ))
 
     return StreamingResponse(
         event_generator(),
@@ -134,3 +160,12 @@ async def chat_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.delete("/history", status_code=204)
+async def clear_chat_history(user: CurrentUser = Depends(require_user)):
+    settings = get_settings()
+    if not settings.CHAT_HISTORY_ENABLED:
+        raise HTTPException(status_code=404, detail="Chat history is not enabled.")
+    store = gRPCState.chat_history_store
+    await asyncio.to_thread(store.delete_for_user, user.user_id)

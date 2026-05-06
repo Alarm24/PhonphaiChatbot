@@ -1,4 +1,5 @@
 import os
+import re
 import threading
 
 import numpy as np
@@ -7,6 +8,25 @@ from db.qdrant import QdrantDB
 from logger import log
 from rank_bm25 import BM25Okapi
 from sentence_transformers import CrossEncoder
+
+THAI_CHAR_RE = re.compile(r"[\u0e00-\u0e7f]")
+ASCII_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+def _tokenize_for_bm25(text: str) -> list[str]:
+    normalized = (text or "").lower()
+    tokens = ASCII_TOKEN_RE.findall(normalized)
+
+    if THAI_CHAR_RE.search(normalized):
+        compact_thai = "".join(
+            char for char in normalized if THAI_CHAR_RE.match(char)
+        )
+        tokens.extend(
+            compact_thai[index : index + 3]
+            for index in range(max(len(compact_thai) - 2, 0))
+        )
+
+    return tokens or normalized.split()
 
 
 class BaseTheme:
@@ -31,8 +51,8 @@ class BaseTheme:
         self._sync_bm25_index()
 
     def _tokenize(self, text):
-        """Simple tokenizer for BM25 keyword matching"""
-        return text.lower().split()
+        """Thai-aware tokenizer for BM25 keyword matching."""
+        return _tokenize_for_bm25(text)
 
     def _sync_bm25_index(self):
         """Pulls all docs from the vector store and builds an in-memory BM25 index."""
@@ -190,7 +210,15 @@ class BaseTheme:
         final_results = rankings["reranked_docs"]
 
         parsed_results = []
-        for doc in final_results[:limit]:  # Cut off exactly at RERANK_TOP_K limit
+        filtered_results = [
+            doc
+            for doc in final_results
+            if float(doc.get("score", 0.0)) >= self.settings.RERANK_SCORE_THRESHOLD
+        ]
+        if not filtered_results and final_results:
+            filtered_results = [final_results[0]]
+
+        for doc in filtered_results[:limit]:
             parsed_results.append(
                 {"content": doc["content"], "metadata": doc["metadata"], "score": doc["score"]}
             )

@@ -6,7 +6,7 @@ import retriever_pb2_grpc
 import uvicorn
 from auth.passwords import hash_password
 from config import get_settings
-from db import AbstractUserStore, make_user_store
+from db import AbstractUserStore, make_chat_history_store, make_user_store
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from logger import log
@@ -88,6 +88,14 @@ async def lifespan(app: FastAPI):
         settings.INITIAL_USER_PASSWORD,
         settings.INITIAL_USER_STAFF_ID,
     )
+
+    # 4. Connect to chat history store (only when enabled)
+    if settings.CHAT_HISTORY_ENABLED:
+        gRPCState.chat_history_store = make_chat_history_store(settings)
+        log.info(
+            f"Chat history enabled (backend={settings.CHAT_HISTORY_BACKEND}, "
+            f"window={settings.CHAT_HISTORY_WINDOW})"
+        )
 
     yield  # App is running and handling requests here
 
