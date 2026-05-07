@@ -1,27 +1,29 @@
-
 flowchart TD
     UserDev["User Devices (Web)"]
 
     subgraph Docker["Docker Compose"]
         direction TB
-        ApiGw["api-gateway<br/>(FastAPI · port 8080)"]
+        ApiGw["api-gateway<br/>(FastAPI)"]
 
         subgraph AppServices["Application Services"]
             direction LR
-            AgentSvc["agent<br/>(LangGraph · port 50052)"]
-            RetrieverSvc["retriever<br/>(Hybrid Search + Reranking · port 50051)"]
+            AgentSvc["agent<br/>(LangGraph)"]
+            RetrieverSvc["retriever<br/>(Qdrant Hybrid Search + BGE Reranking)"]
         end
 
         subgraph DataStores["Data Stores"]
             direction LR
-            Chroma[("chroma<br/>(ChromaDB)")]
-            Mongo[("mongo<br/>(MongoDB)")]
+            Qdrant[("qdrant<br/>(Qdrant Vector DB)")]
+            Mongo[("mongo<br/>(MongoDB metadata/auth/chat history)")]
+            Postgres[("postgres<br/>(PostgreSQL issue logs)")]
         end
 
         ApiGw --> AgentSvc
         ApiGw --> RetrieverSvc
+        ApiGw --> Mongo
         AgentSvc --> RetrieverSvc
-        RetrieverSvc --> Chroma
+        AgentSvc --> Postgres
+        RetrieverSvc --> Qdrant
         RetrieverSvc --> Mongo
     end
 
@@ -32,4 +34,3 @@ flowchart TD
 
     AgentSvc -- "HTTPS" --> Gemini
     AgentSvc -- "HTTPS" --> Legacy
-
