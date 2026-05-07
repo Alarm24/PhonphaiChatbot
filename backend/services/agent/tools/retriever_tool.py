@@ -10,6 +10,8 @@ from state import AgentState
 ASCII_TOKEN_RE = re.compile(r"[a-z0-9]+")
 TICKET_CODE_RE = re.compile(r"\b([A-Z]{3})[-\s]?(\d{4})[-\s]?(\d{4})\b", re.IGNORECASE)
 TICKET_SUFFIX_RE = re.compile(r"^\d{4}$")
+TICKET_YEAR_RE = re.compile(r"^25\d{2}$")
+TICKET_YEAR_SUFFIX_RE = re.compile(r"\b(25\d{2})[-\s/]?(\d{4})\b")
 
 
 def _normalize_ticket_code(ticket_code: str) -> str:
@@ -18,6 +20,27 @@ def _normalize_ticket_code(ticket_code: str) -> str:
         return ticket_code.strip().upper()
     province, year, ticket_id = match.groups()
     return f"{province.upper()}-{year}-{ticket_id}"
+
+
+def _parse_ticket_query(ticket_query: str) -> tuple[str, tuple[str, ...]]:
+    normalized = _normalize_ticket_code(ticket_query)
+
+    full_code_match = TICKET_CODE_RE.fullmatch(normalized)
+    if full_code_match:
+        return "code", (normalized,)
+
+    year_suffix_match = TICKET_YEAR_SUFFIX_RE.search(ticket_query.strip())
+    if year_suffix_match:
+        year, suffix = year_suffix_match.groups()
+        return "year_suffix", (year, suffix)
+
+    if TICKET_YEAR_RE.fullmatch(normalized):
+        return "year", (normalized,)
+
+    if TICKET_SUFFIX_RE.fullmatch(normalized):
+        return "suffix", (normalized,)
+
+    return "code", (normalized,)
 
 
 def _contains_thai(text: str) -> bool:
@@ -146,8 +169,9 @@ async def _execute_ticket_lookup(ticket_code: str) -> tuple[str, list]:
     """Look up structured Remedy ticket data without passing rows back into the LLM."""
     from core.auth_context import get_current_auth
 
-    normalized_code = _normalize_ticket_code(ticket_code)
-    if not normalized_code:
+    lookup_kind, lookup_values = _parse_ticket_query(ticket_code)
+    lookup_label = "-".join(lookup_values)
+    if not lookup_label:
         return "Ticket lookup skipped because no ticket code was provided.", []
 
     auth = get_current_auth()
@@ -171,34 +195,47 @@ async def _execute_ticket_lookup(ticket_code: str) -> tuple[str, list]:
 
     try:
         ticket_store = AgentState.ticket_store
-        if TICKET_SUFFIX_RE.fullmatch(normalized_code):
+        if lookup_kind == "year_suffix":
+            rows = await asyncio.to_thread(
+                ticket_store.find_tickets_by_year_and_suffix,
+                lookup_values[0],
+                lookup_values[1],
+                staff_filter,
+            )
+        elif lookup_kind == "year":
+            rows = await asyncio.to_thread(
+                ticket_store.find_tickets_by_year,
+                lookup_values[0],
+                staff_filter,
+            )
+        elif lookup_kind == "suffix":
             rows = await asyncio.to_thread(
                 ticket_store.find_tickets_by_suffix,
-                normalized_code,
+                lookup_values[0],
                 staff_filter,
             )
         else:
             rows = await asyncio.to_thread(
                 ticket_store.find_ticket_by_code,
-                normalized_code,
+                lookup_values[0],
                 staff_filter,
             )
         artifact = [
             {
                 "source_type": "ticket_lookup",
-                "ticket_code": normalized_code,
+                "ticket_code": lookup_label,
                 "rows": rows,
             }
         ]
 
         if not rows:
             return (
-                f"No structured Remedy ticket records were found for {normalized_code}.",
+                f"No structured Remedy ticket records were found for {lookup_label}.",
                 artifact,
             )
 
         return (
-            f"Structured Remedy ticket lookup completed for {normalized_code}. "
+            f"Structured Remedy ticket lookup completed for {lookup_label}. "
             "Raw database rows were withheld from the model and attached as an artifact.",
             artifact,
         )
@@ -251,7 +288,7 @@ async def _execute_ticket_list() -> tuple[str, list]:
 # --- The 3 Tools ---
 @tool(response_format="content_and_artifact")
 async def search_remedy_tickets(ticket_code: str) -> tuple[str, list]:
-    """Use this ONLY for exact Remedy ticket codes such as SKN-2567-0006, BKK-2569-0001, UTH-2569-0001, or a bare 4-digit ticket ID suffix when the user's message is only that suffix or clearly asks about a ticket/request."""
+    """Use this ONLY for exact Remedy ticket codes such as SKN-2567-0006, BKK-2569-0001, UTH-2569-0001; a bare 4-digit ticket ID suffix such as 0001; a BE year such as 2569; or a BE year plus suffix such as 2569 0001 when the user's message is only that value or clearly asks about a ticket/request."""
     return await _execute_ticket_lookup(ticket_code)
 
 
