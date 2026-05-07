@@ -1,34 +1,36 @@
-
 flowchart TD
     User(("User"))
+
     Frontend["Frontend (Web/Mobile UI)"]
-    ApiGateway["API Gateway"]
+    ApiGateway["API Gateway<br/>(HTTP/FastAPI)"]
 
     subgraph Microservices["Microservices Layer (gRPC / Docker)"]
         direction TB
         ChatSvc["AI Agent<br/>(LangGraph Orchestrator)"]
-        Retrieval["Retrieval Service<br/>(Hybrid Search + BGE Reranking)"]
+        Retrieval["Retrieval Service<br/>(Qdrant Dense Search + BM25 + BGE Reranking)"]
         ChatSvc -- "gRPC" --> Retrieval
     end
 
-    subgraph External["External API"]
+    subgraph External["External APIs"]
         GeminiAPI["Gemini API<br/>(via OpenRouter)"]
+        Legacy[("PhonPhai API<br/>(Legacy Backend)")]
     end
 
-    subgraph DBs["Databases & External APIs"]
+    subgraph DBs["Databases"]
         direction LR
-        Legacy[("PhonPhai API<br/>(Legacy Backend)")]
-        Chroma[("ChromaDB<br/>(Vector Store)")]
-        Mongo[("MongoDB<br/>(File Storage)")]
+        Qdrant[("Qdrant<br/>(Vector Store: remedy / disaster / manual collections)")]
+        Mongo[("MongoDB<br/>(file metadata, auth, chat history)")]
+        Postgres[("PostgreSQL<br/>(issue_logs / ticket status data)")]
     end
 
     User --> Frontend
     Frontend --> ApiGateway
     ApiGateway -- "gRPC" --> ChatSvc
     ApiGateway -- "gRPC" --> Retrieval
+    ApiGateway -- "Read/Write" --> Mongo
 
     ChatSvc -- "HTTPS" --> GeminiAPI
     ChatSvc -- "HTTPS" --> Legacy
-    Retrieval -- "Query" --> Chroma
-    Retrieval -- "Query" --> Mongo
-
+    ChatSvc -- "SQL" --> Postgres
+    Retrieval -- "Dense vector search + BM25 source docs" --> Qdrant
+    Retrieval -- "File metadata" --> Mongo

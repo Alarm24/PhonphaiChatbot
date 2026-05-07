@@ -1,10 +1,10 @@
-
 sequenceDiagram
     participant U as User
     participant F as Frontend
     participant A as API Gateway
     participant C as AI Agent
     participant R as Retriever
+    participant Q as Qdrant Vector DB
     participant G as Gemini API
 
     autonumber
@@ -12,13 +12,15 @@ sequenceDiagram
     F->>A: Forward request (HTTP)
     A->>C: Route request (gRPC)
     C->>R: Search query (gRPC)
-    Note over R: Hybrid Search (Dense+BM25) → RRF → BGE Rerank → Top-5
-    R-->>C: Return Top-5 Scored Chunks
+    R->>Q: Dense vector search by theme collection
+    Q-->>R: Return semantic candidates
+    Note over R: Build BM25 candidates from synced Qdrant payloads
+    Note over R: Fuse dense + BM25 rankings using RRF, then BGE rerank
+    R-->>C: Return top reranked chunks with metadata
     C->>G: Generate answer with context (via OpenRouter)
-    G-->>C: Final Answer with citation markers
-    C-->>A: Return Answer + Sources
-    A-->>F: Deliver Answer
-    F-->>U: Display Answer
+    G-->>C: Final answer with citation markers
+    C-->>A: Return answer + sources
+    A-->>F: Deliver answer
+    F-->>U: Display answer
 
     Note over C, G: Total Latency <= 5 seconds
-
