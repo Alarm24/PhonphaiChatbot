@@ -37,7 +37,7 @@ export function LoginRequiredModal({ open, onClose }: LoginRequiredModalProps) {
           จำเป็นต้องเข้าสู่ระบบ
         </h2>
         <p className="mb-6 text-center text-sm text-gray-600">
-          กรุณาเข้าสู่ระบบเพื่อสอบถามข้อมูลคำร้อง (หมายเลข SKN-XXXX-XXXX)
+          กรุณาเข้าสู่ระบบเพื่อสอบถามข้อมูลคำร้อง (หมายเลข PPP-XXXX-XXXX)
         </p>
         <div className="flex flex-col gap-2">
           <Button

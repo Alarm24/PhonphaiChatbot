@@ -8,6 +8,39 @@ from langchain_core.tools import tool
 from state import AgentState
 
 ASCII_TOKEN_RE = re.compile(r"[a-z0-9]+")
+TICKET_CODE_RE = re.compile(r"\b([A-Z]{3})[-\s]?(\d{4})[-\s]?(\d{4})\b", re.IGNORECASE)
+TICKET_SUFFIX_RE = re.compile(r"^\d{4}$")
+TICKET_YEAR_RE = re.compile(r"^25\d{2}$")
+TICKET_YEAR_SUFFIX_RE = re.compile(r"\b(25\d{2})[-\s/]?(\d{4})\b")
+
+
+def _normalize_ticket_code(ticket_code: str) -> str:
+    match = TICKET_CODE_RE.search(ticket_code.strip())
+    if not match:
+        return ticket_code.strip().upper()
+    province, year, ticket_id = match.groups()
+    return f"{province.upper()}-{year}-{ticket_id}"
+
+
+def _parse_ticket_query(ticket_query: str) -> tuple[str, tuple[str, ...]]:
+    normalized = _normalize_ticket_code(ticket_query)
+
+    full_code_match = TICKET_CODE_RE.fullmatch(normalized)
+    if full_code_match:
+        return "code", (normalized,)
+
+    year_suffix_match = TICKET_YEAR_SUFFIX_RE.search(ticket_query.strip())
+    if year_suffix_match:
+        year, suffix = year_suffix_match.groups()
+        return "year_suffix", (year, suffix)
+
+    if TICKET_YEAR_RE.fullmatch(normalized):
+        return "year", (normalized,)
+
+    if TICKET_SUFFIX_RE.fullmatch(normalized):
+        return "suffix", (normalized,)
+
+    return "code", (normalized,)
 
 
 def _contains_thai(text: str) -> bool:
@@ -136,8 +169,9 @@ async def _execute_ticket_lookup(ticket_code: str) -> tuple[str, list]:
     """Look up structured Remedy ticket data without passing rows back into the LLM."""
     from core.auth_context import get_current_auth
 
-    normalized_code = ticket_code.strip().upper()
-    if not normalized_code:
+    lookup_kind, lookup_values = _parse_ticket_query(ticket_code)
+    lookup_label = "-".join(lookup_values)
+    if not lookup_label:
         return "Ticket lookup skipped because no ticket code was provided.", []
 
     auth = get_current_auth()
@@ -161,27 +195,47 @@ async def _execute_ticket_lookup(ticket_code: str) -> tuple[str, list]:
 
     try:
         ticket_store = AgentState.ticket_store
-        rows = await asyncio.to_thread(
-            ticket_store.find_ticket_by_code,
-            normalized_code,
-            staff_filter,
-        )
+        if lookup_kind == "year_suffix":
+            rows = await asyncio.to_thread(
+                ticket_store.find_tickets_by_year_and_suffix,
+                lookup_values[0],
+                lookup_values[1],
+                staff_filter,
+            )
+        elif lookup_kind == "year":
+            rows = await asyncio.to_thread(
+                ticket_store.find_tickets_by_year,
+                lookup_values[0],
+                staff_filter,
+            )
+        elif lookup_kind == "suffix":
+            rows = await asyncio.to_thread(
+                ticket_store.find_tickets_by_suffix,
+                lookup_values[0],
+                staff_filter,
+            )
+        else:
+            rows = await asyncio.to_thread(
+                ticket_store.find_ticket_by_code,
+                lookup_values[0],
+                staff_filter,
+            )
         artifact = [
             {
                 "source_type": "ticket_lookup",
-                "ticket_code": normalized_code,
+                "ticket_code": lookup_label,
                 "rows": rows,
             }
         ]
 
         if not rows:
             return (
-                f"No structured Remedy ticket records were found for {normalized_code}.",
+                f"No structured Remedy ticket records were found for {lookup_label}.",
                 artifact,
             )
 
         return (
-            f"Structured Remedy ticket lookup completed for {normalized_code}. "
+            f"Structured Remedy ticket lookup completed for {lookup_label}. "
             "Raw database rows were withheld from the model and attached as an artifact.",
             artifact,
         )
@@ -189,11 +243,59 @@ async def _execute_ticket_lookup(ticket_code: str) -> tuple[str, list]:
         return f"Error looking up Remedy ticket data: {str(e)}", []
 
 
+async def _execute_ticket_list() -> tuple[str, list]:
+    """List ticket codes available to the authenticated user without exposing statuses."""
+    from core.auth_context import get_current_auth
+
+    auth = get_current_auth()
+    if auth.is_anonymous:
+        return (
+            "Ticket list denied: the user is not logged in. Please ask them to log in.",
+            [],
+        )
+
+    staff_filter = None if auth.is_admin else auth.staff_id
+    if not auth.is_admin and staff_filter is None:
+        return (
+            "Ticket list denied: this account has no staff_id assigned, "
+            "so it cannot be linked to any ticket. Ask an administrator to set one.",
+            [],
+        )
+
+    try:
+        ticket_store = AgentState.ticket_store
+        codes = await asyncio.to_thread(ticket_store.list_ticket_codes, staff_filter)
+        artifact = [
+            {
+                "source_type": "ticket_list",
+                "scope": "all" if auth.is_admin else "own",
+                "codes": codes,
+            }
+        ]
+
+        if not codes:
+            return "No structured Remedy ticket codes were found for this account.", artifact
+
+        return (
+            "Structured Remedy ticket list completed. "
+            "Only ticket codes were attached as an artifact.",
+            artifact,
+        )
+    except Exception as e:
+        return f"Error listing Remedy ticket data: {str(e)}", []
+
+
 # --- The 3 Tools ---
 @tool(response_format="content_and_artifact")
 async def search_remedy_tickets(ticket_code: str) -> tuple[str, list]:
-    """Use this ONLY for exact Remedy ticket codes such as SKN-2567-0006."""
+    """Use this ONLY for exact Remedy ticket codes such as SKN-2567-0006, BKK-2569-0001, UTH-2569-0001; a bare 4-digit ticket ID suffix such as 0001; a BE year such as 2569; or a BE year plus suffix such as 2569 0001 when the user's message is only that value or clearly asks about a ticket/request."""
     return await _execute_ticket_lookup(ticket_code)
+
+
+@tool(response_format="content_and_artifact")
+async def list_my_remedy_tickets() -> tuple[str, list]:
+    """Use this when a logged-in user asks to list all ticket codes they can access."""
+    return await _execute_ticket_list()
 
 
 @tool(response_format="content_and_artifact")
@@ -209,4 +311,9 @@ async def search_user_manuals(query: str) -> tuple[str, list]:
 
 
 # List of tools to bind to the model
-TOOLS_LIST = [search_remedy_tickets, search_disaster_protocols, search_user_manuals]
+TOOLS_LIST = [
+    search_remedy_tickets,
+    list_my_remedy_tickets,
+    search_disaster_protocols,
+    search_user_manuals,
+]

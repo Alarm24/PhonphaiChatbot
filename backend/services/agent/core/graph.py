@@ -22,6 +22,7 @@ class AgentState(TypedDict):
     messages: Annotated[list, add_messages]
     retrieved_chunks: list
     ticket_lookup_results: list
+    ticket_list_results: list
     final_sources: list
     selected_tools: Annotated[list[str], add]
     tool_call_rounds: int
@@ -67,7 +68,7 @@ def collect_retrieved_chunks(messages: list) -> list[dict]:
     for msg in messages:
         if isinstance(msg, ToolMessage) and getattr(msg, "artifact", None):
             for artifact_item in msg.artifact:
-                if artifact_item.get("source_type") == "ticket_lookup":
+                if artifact_item.get("source_type") in {"ticket_lookup", "ticket_list"}:
                     continue
                 if artifact_item.get("chunk_id"):
                     retrieved_chunks.append(artifact_item)
@@ -361,6 +362,7 @@ async def format_final_answer(state: AgentState):
     # 2. Aggregate chunks from ALL tools in the most recent turn
     retrieved_chunks_dict = {}
     ticket_lookup_results = []
+    ticket_list_results = []
     for msg in reversed(state["messages"]):
         if msg.type == "human":
             break
@@ -369,6 +371,9 @@ async def format_final_answer(state: AgentState):
             for artifact_item in msg.artifact:
                 if artifact_item.get("source_type") == "ticket_lookup":
                     ticket_lookup_results.append(artifact_item)
+                    continue
+                if artifact_item.get("source_type") == "ticket_list":
+                    ticket_list_results.append(artifact_item)
                     continue
 
                 chunk_id = artifact_item.get("chunk_id")
@@ -410,6 +415,7 @@ async def format_final_answer(state: AgentState):
         "messages": [AIMessage(content=answer, id=last_message.id)],
         "retrieved_chunks": retrieved_chunks,
         "ticket_lookup_results": list(reversed(ticket_lookup_results)),
+        "ticket_list_results": list(reversed(ticket_list_results)),
         "final_sources": final_sources_metadata,
         "cost": total_cost,
     }
