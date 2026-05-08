@@ -14,6 +14,15 @@ export type TranslationKey =
   | "quickReply_forgotPassword"
   | "quickReply_contact"
   | "quickReply_hotline"
+  | "quickReply_manualDetails"
+  | "quickReply_manualAgencyOptions"
+  | "quickReply_disasterFloodBag"
+  | "quickReply_disasterEarthquakeReturn"
+  | "quickReply_disasterBirdFlu"
+  | "quickReply_disasterFire"
+  | "quickReply_disasterFlashFlood"
+  | "quickReply_remedyAllTickets"
+  | "quickReply_remedyYear2569"
   | "languageLabel"
   | "assistantTitle"
   | "assistantSubtitle"
@@ -43,6 +52,17 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     quickReply_forgotPassword: "Forgot Password",
     quickReply_contact: "Contact Official",
     quickReply_hotline: "Emergency Hotline",
+    quickReply_manualDetails: "How do I view incident report details?",
+    quickReply_manualAgencyOptions: "What options are available when selecting the helping agency?",
+    quickReply_disasterFloodBag:
+      "Floodwater is about to enter my house. What should I pack in an emergency flood bag?",
+    quickReply_disasterEarthquakeReturn:
+      "The earthquake has stopped. Should I go back into the building to get my wallet?",
+    quickReply_disasterBirdFlu: "How should poultry farm workers protect themselves from bird flu?",
+    quickReply_disasterFire: "What should I do during a fire?",
+    quickReply_disasterFlashFlood: "Flash flood water is coming very fast. What should I do?",
+    quickReply_remedyAllTickets: "Show all request numbers",
+    quickReply_remedyYear2569: "Requests from year 2569",
     languageLabel: "EN",
     assistantTitle: "Phonphai Assistant",
     assistantSubtitle: "AI-powered application and disaster support",
@@ -71,6 +91,16 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     quickReply_forgotPassword: "ลืมรหัสผ่าน",
     quickReply_contact: "ติดต่อเจ้าหน้าที่",
     quickReply_hotline: "สายด่วนฉุกเฉิน",
+    quickReply_manualDetails: "วิธีดูรายละเอียดแจ้งภัย?",
+    quickReply_manualAgencyOptions: "การเลือกหน่วยงานที่ช่วยเหลือมีตัวเลือกอะไรบ้าง?",
+    quickReply_disasterFloodBag: "น้ำกำลังจะเข้าบ้าน ควรเก็บอะไรลงถุงยังชีพหนีน้ำบ้าง?",
+    quickReply_disasterEarthquakeReturn:
+      "แผ่นดินไหวสงบแล้ว รีบกลับเข้าตึกไปหยิบกระเป๋าตังค์ดีไหม?",
+    quickReply_disasterBirdFlu: "คนงานฟาร์มเป็ดไก่ ต้องป้องกันตัวจากหวัดนกยังไง?",
+    quickReply_disasterFire: "ไฟไหม้ต้องทำยังไงบ้าง",
+    quickReply_disasterFlashFlood: "น้ำมาเร็วมากทำยังไงดี",
+    quickReply_remedyAllTickets: "หมายเลขคำร้องทั้งหมด",
+    quickReply_remedyYear2569: "คำร้องของปี 2569",
     languageLabel: "TH",
     assistantTitle: "ผู้ช่วยพ้นภัย",
     assistantSubtitle:
