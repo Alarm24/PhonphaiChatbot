@@ -55,5 +55,6 @@ Volumes are bind-mounted locally; they persist across container restarts. Remove
 ## Evaluation
 - The QA evaluation runner is in `evaluation/`.
 - It scores both `Question` and `Human_question` separately.
+- It uses a CHIE+C LLM-judge rubric: Correctness, Helpfulness, Irrelevancy, Extraneousness, plus Conciseness.
 - Aggregation is emitted per `theme` (`manual`, `disaster`, `remedy`) and per `question_type`.
 - See `evaluation/README.md` for dataset columns, supported formats, and output files.

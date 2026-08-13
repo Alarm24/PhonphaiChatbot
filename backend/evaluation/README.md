@@ -17,7 +17,7 @@ This folder contains a standalone QA evaluation runner for Phonphai.
 - Calls the running chatbot through the API gateway.
 - Evaluates both `Question` and `Human_question` separately.
 - Computes lexical `precision`, `recall`, and `f1_score` against `Ground_truth`.
-- Uses an LLM judge for:
+- Uses an LLM judge with a CHIE+C rubric for:
   - `correctness` (`1` = agree, higher is better)
   - `helpfulness` (`1` = agree, higher is better)
   - `irrelevancy` (`1` = agree, lower is better)
@@ -29,6 +29,19 @@ This folder contains a standalone QA evaluation runner for Phonphai.
   - `remedy` -> `search_remedy_tickets`
   - The check is inferred from `sources.theme` returned by the agent
 - Aggregates scores by `theme` and `question_type`.
+
+## CHIE+C evaluation rubric
+The judge prompt is based on CHIE, an LLM-based evaluation framework for generative machine reading comprehension introduced by Phatthiyaphaibun et al. (2024). CHIE evaluates answers with four binary aspects:
+- **Correctness**: whether the response matches the reference answer.
+- **Helpfulness**: whether the response adds relevant, useful information grounded in the context.
+- **Irrelevancy**: whether the response adds unnecessary information from the context. Lower is better.
+- **Extraneousness**: whether the response adds information not found in the context. Lower is better.
+
+This runner uses **CHIE+C**, where the added **+C** is **Conciseness**. Conciseness checks whether the answer is direct, non-repetitive, and free from unnecessary filler while preserving the required information.
+
+The LLM judge returns binary decisions for each aspect. `Agree` is stored as `1`, and `Disagree` is stored as `0`. For `correctness`, `helpfulness`, and `conciseness`, higher means better. For `irrelevancy` and `extraneousness`, lower means better.
+
+Reference: Phatthiyaphaibun, W. et al. (2024). "CHIE: Generative MRC Evaluation for in-context QA with Correctness, Helpfulness, Irrelevancy, and Extraneousness Aspects." Proceedings of the 2nd GenBench Workshop on Generalisation (Benchmarking) in NLP, pages 154-164. https://aclanthology.org/2024.genbench-1.10/
 
 ## Required testcase columns
 - `Question`
